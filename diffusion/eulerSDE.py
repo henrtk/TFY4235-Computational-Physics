@@ -4,6 +4,11 @@ from numba import njit,vectorize, float64,prange
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Globals (regretably), reduced units
+_alpha = 0.3
+_oalpha = 1-_alpha
+_D = 0.005
+# ----------------------
 class Particle:
     def __init__(self,t,x0,period,dT):
         self.t, self.x, self.period, self.dT = t, x0, period, dT
@@ -13,21 +18,13 @@ class Particle:
         self.t += self.dT*steps
         self.x = self.traj[-1]
 
-# Globals, reduced units
-
-steps = 40000000
-_alpha = 0.3
-_oalpha = 1-_alpha
-_D = 0.005
-_delT = 0.5*10**-3
-
-
 def setDFromSi(eta,r,dU,kbT):
     """
     Sets D based on given physical parameters in SI-units
     """
     D = kbT/(6*np.pi*eta*r*dU)
     return D
+
 def translateReducedUnits(x,t,delT,dU,gamma,L):
     xTrue = x*L
     omega = dU/(gamma*L*L)
@@ -83,7 +80,7 @@ def testTimeStep(t):
     return _alpha*S*(np.sqrt(4+invSsq)-2)>5*np.sqrt(t) # factor 5 to ensure >> condition
 
 @njit
-def forwardEulerTraj(x_0 : np.float64, steps : int, period : np.float64) -> "np.ndarray(shape = steps, dtype=np.float64)" :
+def forwardEulerTraj(x_0 : np.float64, steps : int, period : np.float64, dt : np.float64 = 10**-3) -> "np.ndarray(dtype=np.float64)" :
     """
     Forward Euler for diffusion SDE
     
@@ -92,26 +89,26 @@ def forwardEulerTraj(x_0 : np.float64, steps : int, period : np.float64) -> "np.
     x = np.empty(steps+1)
     rands = np.random.standard_normal(steps)
     x[0] = x_0
-    ts = np.linspace(0,_delT*steps,steps+1)
+    ts = np.linspace(0,dt*steps,steps+1)
     for i in range(steps):
-        x[i+1] = x[i] + F(x[i],ts[i],period)*_delT + np.sqrt(2*_D*_delT)*rands[i]
+        x[i+1] = x[i] + F(x[i],ts[i],period)*dt + np.sqrt(2*_D*dt)*rands[i]
     return x
 
 @njit
-def forwardEulerEndp(x0 : np.float64, steps : int, period : np.float64):
+def forwardEulerEndp(x0 : np.float64, steps : int, period : np.float64, dt : np.float64 = 10**-3):
     """
     Forward Euler with no trajectory generation.
 
     returns: endpoint -> np.float64
     """
     x = x0
-    ts = np.linspace(0,_delT*steps,steps+1) # fairly sure this prevents accumulation of fp-error in t
+    ts = np.linspace(0,dt*steps,steps+1) # fairly sure this prevents accumulation of fp-error in t
     for i in range(steps):
-        x += F(x,ts[i],period)*_delT + np.sqrt(2*_D*_delT)*np.random.standard_normal()
+        x += F(x,ts[i],period)*dt + np.sqrt(2*_D*dt)*np.random.standard_normal()
     return x
 
 @njit
-def simulateParticles(n,iterations,period):
+def simulateParticles(n,iterations,period,dt):
     """
     Simulates n particles using #iterations = iterations
     in the Forward Euler scheme with given period.
@@ -122,18 +119,18 @@ def simulateParticles(n,iterations,period):
     """
     partpos = []
     for i in range(n):
-        partpos.append(forwardEulerEndp(0,iterations,period))
+        partpos.append(forwardEulerEndp(0,iterations,period,dt))
     partpos = np.asarray(partpos)
     return np.array([np.mean(partpos), partpos.std()])
 
 @njit
-def simulateParticlesDetailed(n,iterations,period):
+def simulateParticlesDetailed(n,iterations,period,dt):
     """
     simulates n particles 
     """
     partpos = []
     for i in range(n):
-        partpos.append(forwardEulerEndp(0,iterations,period))
+        partpos.append(forwardEulerEndp(0,iterations,period,dt))
     partpos = np.asarray(partpos)
     return np.array([np.mean(partpos), partpos.std()]), partpos
 
@@ -160,20 +157,20 @@ def datagen(start,end,fineness,particles = 10,iterations = 10000):
             print("Progress: ", i-12 , "simulations done")
     return datas, seeds
 
-def plotParticleTrajectory(xs,delT,period, color = None):
-    ts = np.linspace(0,(len(xs)-1)*delT,len(xs))
-    plt.plot(ts,xs, label = f"{round(period,2)}",color = color)
-    plt.text(ts[-1]+ts[-1]*0.01,xs[-1],s = str(round(period,1)))
+def plotParticleTrajectory(trajectory,dt,period, color = None):
+    ts = np.linspace(0,(len(trajectory)-1)*dt,len(trajectory))
+    plt.plot(ts,trajectory, label = f"{round(period,2)}",color = color)
+    plt.text(ts[-1]+ts[-1]*0.01,trajectory[-1],s = str(round(period,1)))
     return
 
-def downhillSimp(errormax,partIterations,particles = 30, maxiter = 500):
+def downhillSimp(errormax,partIterations,dt,particles = 30, maxiter = 500):
     """
     Implements something similar to downhill simplex D = 2 in 1d.
     Maximizes particle position wrt. flashing period.
 
     """
     Ts = np.array([15,20,100.0])
-    fs = np.array([simulateParticles(particles,partIterations,Ts[0]),simulateParticles(particles,partIterations,Ts[1]),simulateParticles(particles,partIterations,Ts[2])])
+    fs = np.array([simulateParticles(particles,partIterations,Ts[0],dt),simulateParticles(particles,partIterations,Ts[1],dt),simulateParticles(particles,partIterations,Ts[2],dt)])
     start = time()
     i = 0
     print(Ts)
@@ -185,8 +182,8 @@ def downhillSimp(errormax,partIterations,particles = 30, maxiter = 500):
             if (Tmean + 0.9*(Tmean-Ts[mini]))>0:
                 Ts[mini] = Tmean + 0.9*(Tmean-Ts[mini])
             else: 
-                Ts[mini] = 2*_delT
-            fs[mini,:] = simulateParticles(particles,partIterations,Ts[mini])
+                Ts[mini] = 4*dt
+            fs[mini,:] = simulateParticles(particles,partIterations,Ts[mini],dt)
 
             plt.errorbar(Ts[mini],fs[mini][0],fs[mini][1],fmt="o")
             plt.text(Ts[mini],fs[mini][0],i)
@@ -196,8 +193,8 @@ def downhillSimp(errormax,partIterations,particles = 30, maxiter = 500):
             if (Tmean + 0.5*(Tmean-Ts[mini]))>0:
                 Ts[mini] = Tmean + 0.5*(Tmean-Ts[mini])
             else: 
-                Ts[mini] = 2*_delT
-            fs[mini,:] = simulateParticles(particles,partIterations,Ts[mini])
+                Ts[mini] = 4*dt
+            fs[mini,:] = simulateParticles(particles,partIterations,Ts[mini],dt)
             plt.errorbar(Ts[mini],fs[mini][0],fs[mini][1],fmt="o")
             plt.text(Ts[mini],fs[mini][0],i)
         i+=1
@@ -211,5 +208,7 @@ def downhillSimp(errormax,partIterations,particles = 30, maxiter = 500):
     return Ts
 
 if __name__ == "__main__":
+    steps = 40000000
+    _delT = 0.5*10**-3
     print("delT small?", testTimeStep(_delT))
-    downhillSimp(4,steps,20)
+    downhillSimp(4,steps,_delT,20)
