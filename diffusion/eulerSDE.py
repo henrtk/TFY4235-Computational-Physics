@@ -5,36 +5,40 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class Particle:
-    def __init__(self,t,x0,dT):
-        self.t,self.x,self.dT = t, x0, dT
+    def __init__(self,t,x0,period,dT):
+        self.t, self.x, self.period, self.dT = t, x0, period, dT
         self.traj = np.array([x0])
     def update(self,steps):
-        self.traj = np.append(self.traj,forwardEulerTraj(self.x,steps,self.dT)[1:])
+        self.traj = np.append(self.traj,forwardEulerTraj(self.x,steps,self.period)[1:])
         self.t += self.dT*steps
         self.x = self.traj[-1]
-        
 
 # Globals, reduced units
 
-steps = 4000000
-_alpha = 0.2
+steps = 40000000
+_alpha = 0.3
 _oalpha = 1-_alpha
 _D = 0.005
-_delT = 5*10**-3
-_period = 3.6
-_dtypePref = np.float64
-
-def convertToSi():
-    _alpha = 0.1
-    _oalpha = 1-_alpha
-    _D = 0.005
-    _delT = 5*10**-3
-    _period = steps//1000*_delT
+_delT = 0.5*10**-3
 
 
-@vectorize([float64(float64,float64)])
-def U(x_n,t_n):
-    tcheck = np.abs(t_n%_period)>3/4*_period    # check if potential should be on
+def setDFromSi(eta,r,dU,kbT):
+    """
+    Sets D based on given physical parameters in SI-units
+    """
+    D = kbT/(6*np.pi*eta*r*dU)
+    return D
+def translateReducedUnits(x,t,delT,dU,gamma,L):
+    xTrue = x*L
+    omega = dU/(gamma*L*L)
+    tTrue = t/omega
+    delTtrue = delT/omega
+    UTrue = dU*U(x,t)
+    return xTrue,tTrue,delTtrue,UTrue
+
+@vectorize([float64(float64,float64,float64)])
+def U(x_n,t_n,period = 3):
+    tcheck = np.abs(t_n%period)<3/4*period      # check if potential should be on
     periodicPos = np.abs(x_n%1)                 # find position within potential
     if (periodicPos<_alpha):                    # handle time-dependence
         return periodicPos*tcheck/_alpha
@@ -49,7 +53,6 @@ def F(x_n : np.float64, t_n : np.float64, period:np.float64) -> np.float64:
         return -tcheck/_alpha
     else:
         return tcheck/(_oalpha)
-
 
 def _boxMuller(pairedUniformArray):
     R = np.sqrt(-2*np.log(pairedUniformArray[::2]))
@@ -68,8 +71,9 @@ def demonstrateBM(samples):
 
 def plotPotForceX(x_max):
     x = np.linspace(-1,x_max,10000)
-    plt.plot(x,U(x,_period*0.99))
-    plt.plot(x,F(x,_period*0.99))
+    # want to plot the potentials in the state ON, hence 0.99
+    plt.plot(x,U(x,-0.001))
+    plt.plot(x,F(x,-0.001))
     plt.show()
 
 @njit
@@ -85,8 +89,6 @@ def forwardEulerTraj(x_0 : np.float64, steps : int, period : np.float64) -> "np.
     
     returns: trajectory -> np.ndarray(shape = steps, dtype = np.float64)
      """
-    if not testTimeStep(_delT):
-        print("Test did not hold, expect tunneling")
     x = np.empty(steps+1)
     rands = np.random.standard_normal(steps)
     x[0] = x_0
@@ -102,8 +104,6 @@ def forwardEulerEndp(x0 : np.float64, steps : int, period : np.float64):
 
     returns: endpoint -> np.float64
     """
-    if not testTimeStep(_delT):
-        print("Test did not hold, expect tunneling")
     x = x0
     ts = np.linspace(0,_delT*steps,steps+1) # fairly sure this prevents accumulation of fp-error in t
     for i in range(steps):
@@ -112,6 +112,14 @@ def forwardEulerEndp(x0 : np.float64, steps : int, period : np.float64):
 
 @njit
 def simulateParticles(n,iterations,period):
+    """
+    Simulates n particles using #iterations = iterations
+    in the Forward Euler scheme with given period.
+
+    Return: mean and non-empirical std.
+    (note: std is biased because numba doe not like the correct
+     ddof = 1 argument. Still gives a decent estimate.)
+    """
     partpos = []
     for i in range(n):
         partpos.append(forwardEulerEndp(0,iterations,period))
@@ -120,6 +128,9 @@ def simulateParticles(n,iterations,period):
 
 @njit
 def simulateParticlesDetailed(n,iterations,period):
+    """
+    simulates n particles 
+    """
     partpos = []
     for i in range(n):
         partpos.append(forwardEulerEndp(0,iterations,period))
@@ -129,7 +140,11 @@ def simulateParticlesDetailed(n,iterations,period):
 
 @njit(parallel = True)
 def datagen(start,end,fineness,particles = 10,iterations = 10000):
-
+    """
+    Generates statistics for uniformally spaced periods
+    using parameter particles as #simulations for every
+    unique period. Parallelized using numba.
+    """
     # generate period landscape
     area  = np.linspace(start,end,fineness)
     # generate some random seeds for reproduction and secure randomization in parallel.
@@ -145,9 +160,12 @@ def datagen(start,end,fineness,particles = 10,iterations = 10000):
             print("Progress: ", i-12 , "simulations done")
     return datas, seeds
 
-#xs = np.linspace(0,_delT*steps,steps+1)
-#plt.fill_between(xs,0,50,where=np.abs(xs%_period)>(3/4*_period),color = "g",alpha = 0.1)
-#periods = np.ones(20)*_period
+def plotParticleTrajectory(xs,delT,period, color = None):
+    ts = np.linspace(0,(len(xs)-1)*delT,len(xs))
+    plt.plot(ts,xs, label = f"{round(period,2)}",color = color)
+    plt.text(ts[-1]+ts[-1]*0.01,xs[-1],s = str(round(period,1)))
+    return
+
 def downhillSimp(errormax,partIterations,particles = 30, maxiter = 500):
     """
     Implements something similar to downhill simplex D = 2 in 1d.
@@ -171,6 +189,7 @@ def downhillSimp(errormax,partIterations,particles = 30, maxiter = 500):
             fs[mini,:] = simulateParticles(particles,partIterations,Ts[mini])
 
             plt.errorbar(Ts[mini],fs[mini][0],fs[mini][1],fmt="o")
+            plt.text(Ts[mini],fs[mini][0],i)
         else:
             mini = fs_sort[0]
             Tmean = (Ts[fs_sort[2]]+Ts[fs_sort[1]])/2 
@@ -180,6 +199,7 @@ def downhillSimp(errormax,partIterations,particles = 30, maxiter = 500):
                 Ts[mini] = 2*_delT
             fs[mini,:] = simulateParticles(particles,partIterations,Ts[mini])
             plt.errorbar(Ts[mini],fs[mini][0],fs[mini][1],fmt="o")
+            plt.text(Ts[mini],fs[mini][0],i)
         i+=1
         print(i, fs[:,0], Ts) 
         if maxiter <= i:
@@ -190,3 +210,6 @@ def downhillSimp(errormax,partIterations,particles = 30, maxiter = 500):
     print("End at time = ", time()-start,"Period found",Ts)
     return Ts
 
+if __name__ == "__main__":
+    print("delT small?", testTimeStep(_delT))
+    downhillSimp(4,steps,20)
