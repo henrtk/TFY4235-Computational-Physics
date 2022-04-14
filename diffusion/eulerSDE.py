@@ -1,16 +1,15 @@
-from re import X
 from time import time
-from numba import njit,vectorize, float64,prange
+from numba import njit,vectorize, float64,prange, pycc
 import matplotlib.pyplot as plt
 import numpy as np
 
 # Globals (regretably), reduced units
-_alpha = 0.3
+_alpha = 0.1
 _oalpha = 1-_alpha
 _D = 0.005
 # ----------------------
 class Particle:
-    def __init__(self,t,x0,period,dT):
+    def __init__(self,t,x0,period,dT) -> None:
         self.t, self.x, self.period, self.dT = t, x0, period, dT
         self.traj = np.array([x0])
     def update(self,steps):
@@ -18,6 +17,11 @@ class Particle:
         self.t += self.dT*steps
         self.x = self.traj[-1]
 
+class ParticleEnsemble:
+    def __init__(self,t,x0,period,dT,numParticles : int = 5) -> None:
+        self.particles = [Particle(t,x0,period,dT) for i in range(numParticles)]
+    def parallelUpdate():
+        pass
 def setDFromSi(eta,r,dU,kbT):
     """
     Sets D based on given physical parameters in SI-units
@@ -107,40 +111,49 @@ def forwardEulerEndp(x0 : np.float64, steps : int, period : np.float64, dt : np.
         x += F(x,ts[i],period)*dt + np.sqrt(2*_D*dt)*np.random.standard_normal()
     return x
 
-@njit
+@njit(parallel = True)
 def simulateParticles(n,iterations,period,dt):
     """
     Simulates n particles using #iterations = iterations
     in the Forward Euler scheme with given period.
+    Parallelized using numba.
 
-    Return: mean and non-empirical std.
-    (note: std is biased because numba doe not like the correct
+    Return: np.ndarray([mean,  non-empirical std])
+    (note: std is biased because numba does not like the correct
      ddof = 1 argument. Still gives a decent estimate.)
     """
-    partpos = []
-    for i in range(n):
-        partpos.append(forwardEulerEndp(0,iterations,period,dt))
-    partpos = np.asarray(partpos)
-    return np.array([np.mean(partpos), partpos.std()])
-
-@njit
-def simulateParticlesDetailed(n,iterations,period,dt):
-    """
-    simulates n particles 
-    """
-    partpos = []
-    for i in range(n):
-        partpos.append(forwardEulerEndp(0,iterations,period,dt))
-    partpos = np.asarray(partpos)
-    return np.array([np.mean(partpos), partpos.std()]), partpos
-
+    partpos = np.empty(n)
+    for i in prange(n):
+        partpos[i] = forwardEulerEndp(0,iterations,period,dt)
+    return np.array([partpos.mean(), partpos.std()])
 
 @njit(parallel = True)
+def simulateParticlesDetailed(n,iterations,period,dt):
+    """
+    Simulates n particles using #iterations = iterations
+    in the Forward Euler scheme with given period.
+    Parallelized using numba.
+
+    Return: np.ndarray([mean,  non-empirical std]) , list([end positions])
+    (note: std is biased because numba does not like the correct
+     ddof = 1 argument. Still gives a decent estimate.)
+    """
+    if not testTimeStep(dt):
+        print("Uh oh, chance of particles jumping across potentials")
+    partpos = np.empty(n)
+    for i in prange(n):
+        partpos[i] = forwardEulerEndp(0,iterations,period,dt)
+    return np.array([partpos.mean(), partpos.std()]), partpos
+
+
+@njit
 def datagen(start,end,fineness,particles = 10,iterations = 10000):
     """
     Generates statistics for uniformally spaced periods
     using parameter particles as #simulations for every
-    unique period. Parallelized using numba.
+    unique period.
+
+    returns: (list([period, mean, std]), np.ndarray([seeds]))
     """
     # generate period landscape
     area  = np.linspace(start,end,fineness)
@@ -148,13 +161,12 @@ def datagen(start,end,fineness,particles = 10,iterations = 10000):
     seeds = np.random.randint(low = 0, high = 10000, size = fineness)
     datas = []
     # initiate parallel simulation of particle drift
-    for i in prange(fineness): 
+    for i in range(fineness): 
         np.random.seed(seeds[i])
         mu,std = simulateParticles(particles,iterations,area[i])
         datas.append((area[i],mu,std))
-        # feedback to check progress during runtime, assumes NUMBA_NUM_THREADS is set to 12
-        if i % 12 == 0: 
-            print("Progress: ", i-12 , "simulations done")
+        if i % 10 == 0: 
+            print("Progress: ", i , "simulations done")
     return datas, seeds
 
 def plotParticleTrajectory(trajectory,dt,period, color = None):
