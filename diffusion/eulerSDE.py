@@ -28,6 +28,8 @@ def setDFromSi(eta,r,dU,kbT):
     """
     D = kbT/(6*np.pi*eta*r*dU)
     return D
+def get_D():
+    return _D
 
 def translateReducedUnits(x,t,delT,dU,gamma,L):
     xTrue = x*L
@@ -39,7 +41,7 @@ def translateReducedUnits(x,t,delT,dU,gamma,L):
 
 @vectorize([float64(float64,float64,float64)])
 def U(x_n,t_n,period = 3):
-    tcheck = np.abs(t_n%period)<3/4*period      # check if potential should be on
+    tcheck = np.abs(t_n%period)<(3/4*period)      # check if potential should be on
     periodicPos = np.abs(x_n%1)                 # find position within potential
     if (periodicPos<_alpha):                    # handle time-dependence
         return periodicPos*tcheck/_alpha
@@ -139,7 +141,7 @@ def simulateParticlesDetailed(n,iterations,period,dt):
      ddof = 1 argument. Still gives a decent estimate.)
     """
     if not testTimeStep(dt):
-        print("Uh oh, chance of particles jumping across potentials")
+        print("Uh oh, chance of particles jumping across potential barriers")
     partpos = np.empty(n)
     for i in prange(n):
         partpos[i] = forwardEulerEndp(0,iterations,period,dt)
@@ -147,7 +149,7 @@ def simulateParticlesDetailed(n,iterations,period,dt):
 
 
 @njit
-def datagen(start,end,fineness,particles = 10,iterations = 10000):
+def datagen(start,end,fineness,particles = 10,iterations = 10000, dt = 10**-4):
     """
     Generates statistics for uniformally spaced periods
     using parameter particles as #simulations for every
@@ -163,17 +165,14 @@ def datagen(start,end,fineness,particles = 10,iterations = 10000):
     # initiate parallel simulation of particle drift
     for i in range(fineness): 
         np.random.seed(seeds[i])
-        mu,std = simulateParticles(particles,iterations,area[i])
-        datas.append((area[i],mu,std))
+        mu,std,posits = simulateParticlesDetailed(particles,iterations,area[i],dt)
+        speeds = np.empty(particles)
+        for i, pos in enumerate(posits):
+            speeds[i] = pos/(iterations*dt)
+        datas.append((area[i],mu,std,speeds.mean(),speeds.std()))
         if i % 10 == 0: 
             print("Progress: ", i , "simulations done")
     return datas, seeds
-
-def plotParticleTrajectory(trajectory,dt,period, color = None):
-    ts = np.linspace(0,(len(trajectory)-1)*dt,len(trajectory))
-    plt.plot(ts,trajectory, label = f"{round(period,2)}",color = color)
-    plt.text(ts[-1]+ts[-1]*0.01,trajectory[-1],s = str(round(period,1)))
-    return
 
 def downhillSimp(errormax,partIterations,dt,particles = 30, maxiter = 500):
     """
@@ -223,4 +222,3 @@ if __name__ == "__main__":
     steps = 40000000
     _delT = 0.5*10**-3
     print("delT small?", testTimeStep(_delT))
-    downhillSimp(4,steps,_delT,20)
