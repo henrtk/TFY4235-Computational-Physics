@@ -3,11 +3,12 @@ from numba import njit,vectorize, float64,prange, pycc
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Globals (regretably), reduced units
+# Globals (regrettably), reduced units
 _alpha = 0.1
 _oalpha = 1-_alpha
 _D = 0.005
 # ----------------------
+
 class Particle:
     def __init__(self,t,x0,period,dT) -> None:
         self.t, self.x, self.period, self.dT = t, x0, period, dT
@@ -22,12 +23,14 @@ class ParticleEnsemble:
         self.particles = [Particle(t,x0,period,dT) for i in range(numParticles)]
     def parallelUpdate():
         pass
+
 def setDFromSi(eta,r,dU,kbT):
     """
     Sets D based on given physical parameters in SI-units
     """
     D = kbT/(6*np.pi*eta*r*dU)
     return D
+
 def get_D():
     return _D
 
@@ -39,7 +42,7 @@ def translateReducedUnits(x,t,delT,dU,gamma,L):
     UTrue = dU*U(x,t)
     return xTrue,tTrue,delTtrue,UTrue
 
-@vectorize([float64(float64,float64,float64)])
+@vectorize([float64(float64,float64,float64)], nopython = True,cache = True)
 def U(x_n,t_n,period = 3):
     tcheck = np.abs(t_n%period)<(3/4*period)      # check if potential should be on
     periodicPos = np.abs(x_n%1)                 # find position within potential
@@ -48,7 +51,7 @@ def U(x_n,t_n,period = 3):
     else:
         return (1-periodicPos)*tcheck/(_oalpha)
 
-@vectorize([float64(float64,float64,float64)])
+@vectorize([float64(float64,float64,float64)], nopython = True, cache = True)
 def F(x_n : np.float64, t_n : np.float64, period:np.float64) -> np.float64:
     tcheck = (np.abs(t_n%period)<(3/4*period))  # check if potential should be on
     periodicPos = np.abs(x_n%1)                 # find position within potential
@@ -64,28 +67,14 @@ def _boxMuller(pairedUniformArray):
     result =  np.append(R*ct,R*st)
     return result
 
-def demonstrateBM(samples):
-    plt.title(f"Demonstration of Box-Muller algorithm, n = {samples} ")
-    plt.hist(_boxMuller(np.random.uniform(size=samples)),bins = 100,density = True, label = "BM-results")
-    plt.plot(np.linspace(-4,4),1/np.sqrt(2*np.pi)*np.exp(-(np.linspace(-4,4)**2/2)), label = "Standard normal distribution")
-    plt.legend()
-    plt.show()
 
-
-def plotPotForceX(x_max):
-    x = np.linspace(-1,x_max,10000)
-    # want to plot the potentials in the state ON, hence 0.99
-    plt.plot(x,U(x,-0.001))
-    plt.plot(x,F(x,-0.001))
-    plt.show()
-
-@njit
+@njit(cache = True)
 def testTimeStep(t): 
     S = np.sqrt(2*_D)
     invSsq = 1/(2*_D)
     return _alpha*S*(np.sqrt(4+invSsq)-2)>5*np.sqrt(t) # factor 5 to ensure >> condition
 
-@njit
+@njit(cache = True)
 def forwardEulerTraj(x_0 : np.float64, steps : int, period : np.float64, dt : np.float64 = 10**-3) -> "np.ndarray(dtype=np.float64)" :
     """
     Forward Euler for diffusion SDE
@@ -100,7 +89,7 @@ def forwardEulerTraj(x_0 : np.float64, steps : int, period : np.float64, dt : np
         x[i+1] = x[i] + F(x[i],ts[i],period)*dt + np.sqrt(2*_D*dt)*rands[i]
     return x
 
-@njit
+@njit(cache = True)
 def forwardEulerEndp(x0 : np.float64, steps : int, period : np.float64, dt : np.float64 = 10**-3):
     """
     Forward Euler with no trajectory generation.
@@ -113,7 +102,7 @@ def forwardEulerEndp(x0 : np.float64, steps : int, period : np.float64, dt : np.
         x += F(x,ts[i],period)*dt + np.sqrt(2*_D*dt)*np.random.standard_normal()
     return x
 
-@njit(parallel = True)
+@njit(parallel = True, cache = True)
 def simulateParticles(n,iterations,period,dt):
     """
     Simulates n particles using #iterations = iterations
@@ -129,7 +118,7 @@ def simulateParticles(n,iterations,period,dt):
         partpos[i] = forwardEulerEndp(0,iterations,period,dt)
     return np.array([partpos.mean(), partpos.std()])
 
-@njit(parallel = True)
+@njit(parallel = True, cache = True)
 def simulateParticlesDetailed(n,iterations,period,dt):
     """
     Simulates n particles using #iterations = iterations
@@ -148,7 +137,7 @@ def simulateParticlesDetailed(n,iterations,period,dt):
     return np.array([partpos.mean(), partpos.std()]), partpos
 
 
-@njit
+@njit(cache = True)
 def datagen(start,end,fineness,particles = 10,iterations = 10000, dt = 10**-4):
     """
     Generates statistics for uniformally spaced periods

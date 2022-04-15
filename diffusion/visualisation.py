@@ -79,6 +79,21 @@ def plotParticleTrajectory(trajectory,dt,period, color = None):
     plt.plot(ts,trajectory, label = f"{round(period,2)}",color = color)
     plt.text(ts[-1]+ts[-1]*0.01,trajectory[-1],s = str(round(period,1)))
     return
+
+def demonstrateBM(samples):
+    plt.title(f"Demonstration of Box-Muller algorithm, n = {samples} ")
+    plt.hist(d._boxMuller(np.random.uniform(size=samples)),bins = 100,density = True, label = "BM-results")
+    plt.plot(np.linspace(-4,4),1/np.sqrt(2*np.pi)*np.exp(-(np.linspace(-4,4)**2/2)), label = "Standard normal distribution")
+    plt.legend()
+    plt.show()
+
+def plotPotForceX(x_max):
+    x = np.linspace(-1,x_max,10000)
+    # want to plot the potentials in the state ON, hence 0.99
+    plt.plot(x,d.U(x,-0.001))
+    plt.plot(x,d.F(x,-0.001))
+    plt.show()
+
 if __name__ == "__main__":
     _,pos = d.simulateParticlesDetailed(20000,631400,5,10**-3)
     histogramtransport(pos, fine = 10)
