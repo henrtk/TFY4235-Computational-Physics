@@ -72,7 +72,7 @@ def _boxMuller(pairedUniformArray):
 def testTimeStep(t): 
     S = np.sqrt(2*_D)
     invSsq = 1/(2*_D)
-    return _alpha*S*(np.sqrt(4+invSsq)-2)>5*np.sqrt(t) # factor 5 to ensure >> condition
+    return _alpha*S*(np.sqrt(4+invSsq)-2)/(5*np.sqrt(t) )# factor 5 to ensure >> condition
 
 @njit(cache = True)
 def forwardEulerTraj(x_0 : np.float64, steps : int, period : np.float64, dt : np.float64 = 10**-3) -> "np.ndarray(dtype=np.float64)" :
@@ -97,9 +97,17 @@ def forwardEulerEndp(x0 : np.float64, steps : int, period : np.float64, dt : np.
     returns: endpoint -> np.float64
     """
     x = x0
-    ts = np.linspace(0,dt*steps,steps+1) # fairly sure this prevents accumulation of fp-error in t
-    for i in range(steps):
-        x += F(x,ts[i],period)*dt + np.sqrt(2*_D*dt)*np.random.standard_normal()
+    if steps < 100_000_000:
+        ts = np.linspace(0,dt*steps,steps+1) # fairly sure this prevents accumulation of fp-error in t
+
+        for i in range(steps):
+            x += F(x,ts[i],period)*dt + np.sqrt(2*_D*dt)*np.random.standard_normal()
+
+    else:
+        t = 0
+        for i in range(steps):
+            x += F(x, t, period)*dt + np.sqrt(2*_D*dt)*np.random.standard_normal()
+            t += dt
     return x
 
 @njit(parallel = True, cache = True)
@@ -116,52 +124,51 @@ def simulateParticles(n,iterations,period,dt):
     partpos = np.empty(n)
     for i in prange(n):
         partpos[i] = forwardEulerEndp(0,iterations,period,dt)
-    return np.array([partpos.mean(), partpos.std()])
+    return np.array([partpos.mean(), partpos.std()*n/(n-1)])
 
-@njit(parallel = True, cache = True)
+@njit(cache = True)
 def simulateParticlesDetailed(n,iterations,period,dt):
     """
     Simulates n particles using #iterations = iterations
     in the Forward Euler scheme with given period.
     Parallelized using numba.
 
-    Return: np.ndarray([mean,  non-empirical std]) , list([end positions])
-    (note: std is biased because numba does not like the correct
-     ddof = 1 argument. Still gives a decent estimate.)
+    Return: 
+        np.ndarray([mean, std]),
+        list([end positions])
     """
     if not testTimeStep(dt):
         print("Uh oh, chance of particles jumping across potential barriers")
+
     partpos = np.empty(n)
-    for i in prange(n):
+    for i in range(n):
         partpos[i] = forwardEulerEndp(0,iterations,period,dt)
-    return np.array([partpos.mean(), partpos.std()]), partpos
+    return np.array([partpos.mean(), partpos.std()*n/(n-1)]), partpos
 
-
-@njit(cache = True)
+@njit(parallel = True, cache = True)
 def datagen(start,end,fineness,particles = 10,iterations = 10000, dt = 10**-4):
     """
     Generates statistics for uniformally spaced periods
     using parameter particles as #simulations for every
     unique period.
 
-    returns: (list([period, mean, std]), np.ndarray([seeds]))
+    returns:
+        (list([period, mean, std,speedmean,speedstd()]), np.ndarray([seeds]))
     """
     # generate period landscape
     area  = np.linspace(start,end,fineness)
-    # generate some random seeds for reproduction and secure randomization in parallel.
-    seeds = np.random.randint(low = 0, high = 10000, size = fineness)
-    datas = []
+    print(area)
+    datas = np.empty(shape = (fineness,5))
     # initiate parallel simulation of particle drift
-    for i in range(fineness): 
-        np.random.seed(seeds[i])
-        mu,std,posits = simulateParticlesDetailed(particles,iterations,area[i],dt)
+    for i in prange(fineness): 
+        (mu,std),posits = simulateParticlesDetailed(particles,iterations,area[i],dt)
         speeds = np.empty(particles)
-        for i, pos in enumerate(posits):
-            speeds[i] = pos/(iterations*dt)
-        datas.append((area[i],mu,std,speeds.mean(),speeds.std()))
-        if i % 10 == 0: 
+        for j, pos in enumerate(posits):
+            speeds[j] = pos/(iterations*dt)
+        datas[i] = np.array([area[i],mu,std,speeds.mean(),speeds.std()])
+        if i % 12 == 0: 
             print("Progress: ", i , "simulations done")
-    return datas, seeds
+    return datas
 
 def downhillSimp(errormax,partIterations,dt,particles = 30, maxiter = 500):
     """
@@ -208,6 +215,12 @@ def downhillSimp(errormax,partIterations,dt,particles = 30, maxiter = 500):
     return Ts
 
 if __name__ == "__main__":
-    steps = 40000000
+    steps = 400_000_000 #uh oh be careful with the memory
     _delT = 0.5*10**-3
     print("delT small?", testTimeStep(_delT))
+    #downhillSimp(3,steps,_delT,50)
+    data = np.asarray(datagen(2.5,4.25,20,25,steps//10,dt=_delT))
+    for i in data:
+        print(i)
+    plt.errorbar(data[:,0],data[:,1],data[:,2])
+    plt.show()
