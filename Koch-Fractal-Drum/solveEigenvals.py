@@ -1,18 +1,39 @@
-import ass1utils as util
+import fractaldrum as util
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.sparse as spsp
 import scipy.sparse.linalg as spspl
 from joblib import load,dump
 import time as t
 import cupyx.scipy.sparse.linalg as cpspl
 import cupyx.scipy.sparse as cpsp
 from cupy import array as cparray
+import logging
 
+logging.basicConfig(level = logging.info)
+
+
+def solveEigenValAssignment(level,fineness,numEigVects):
+    logging.info(f"Generating fractal l = {level}, fineness = {fineness}")
+    fractal = util.kochSubstrate(level,fineness)
+    logging.info("Fractal generated. Generating")
+    laplacian, indices = util.kochLaplacianBoundIs0v2(fractal.len,fractal.fineness)
+    eigvals,eigvects = spspl.eigsh(laplacian,100,sigma = 0)
+
+
+
+
+
+
+
+# RUN AND SAVE DOES NOT WORK RIGHT NOW, VERSION CLASH!
 def runAndSave(level,fineness,eigenvects, plot = 0,save = True, CuDa = False,savefigs=False):
     koch = util.KochSubstrate(level,fineness)
     print("generating A")
     start = t.time()
-    B,grid = util.kochLaplacianv3(koch.len,koch.kochCorners,level,fineness) #This function also saves b, be careful
+    posits = util.generatePosits(koch.len,koch.kochCorners)
+    B,grid = util.generateLaplace2(posits) 
+    del posits
     end = t.time()
     print("A generated, time for completion:",end-start,"\nCalculating eigs")
     #B = util.laplacian2d(koch.len,"csc")
@@ -85,7 +106,21 @@ def readAndPlot(filename,plottype):
         #ax.plot3D(koch.kochCorners[:,1],koch.kochCorners[:,0],koch.kochCorners[:,0]*0,color = "red",linewidth =0.5, zorder = 3)
         plt.show()        
     return
-runAndSave(3,5,20,save = False, plot = 3, savefigs=False , CuDa=False)
+#runAndSave(3,5,20,save = False, plot = 3, savefigs=False , CuDa=False)
 #runAndSave(1,2,40,plot=False,s
 # ave=False,CuDa=False)
 #readAndPlot("Eigenvalues for l = 5 fine = 3 k = 20",0)
+
+def checkfromSavedLapl(filenameL,filenameI=0,k = 50):
+    indices, Laplacian = 0,0
+    with open(filenameL,"rb") as f:
+        Laplacian = np.load(f, allow_pickle = True)
+        print(type(Laplacian.item()))
+        print(np.array2string(Laplacian,formatter={'float' : lambda x: "%.2f" % x}))
+    eigvalsAndVec = spspl.eigsh(Laplacian.item(), k=k,sigma = 0)
+    #with open(filenameI,"rb") as f2:
+    #    indices = np.load(f2)      
+    #np.save(filenameL+"eigvecs",eigvalsAndVec[1])
+    #np.save(filenameL+"eigvals",eigvalsAndVec[0])
+    
+checkfromSavedLapl("l5,f3.npy")
