@@ -24,12 +24,12 @@ class ParticleEnsemble:
     def parallelUpdate():
         pass
 
-def setDFromSi(eta,r,dU,kbT):
-    """
-    Sets D based on given physical parameters in SI-units
-    """
-    D = kbT/(6*np.pi*eta*r*dU)
-    return D
+def setParamsSI(r,viscosity,dU,L,tHat,xHat):
+    gamma = 6*np.pi*viscosity*r
+    t = tHat*gamma*L**2/dU
+    x = L*xHat
+    kbT = _D*dU
+    return t, x, kbT
 
 def get_D():
     return _D
@@ -67,7 +67,6 @@ def _boxMuller(pairedUniformArray):
     result =  np.append(R*ct,R*st)
     return result
 
-
 @njit(cache = True)
 def testTimeStep(t): 
     S = np.sqrt(2*_D)
@@ -94,7 +93,8 @@ def forwardEulerEndp(x0 : np.float64, steps : int, period : np.float64, dt : np.
     """
     Forward Euler with no trajectory generation.
 
-    returns: endpoint -> np.float64
+    returns: 
+        endpoint -> np.float64
     """
     x = x0
     if steps < 100_000_000:
@@ -117,9 +117,8 @@ def simulateParticles(n,iterations,period,dt):
     in the Forward Euler scheme with given period.
     Parallelized using numba.
 
-    Return: np.ndarray([mean,  non-empirical std])
-    (note: std is biased because numba does not like the correct
-     ddof = 1 argument. Still gives a decent estimate.)
+    returns: 
+        np.ndarray([mean,  empirical st. deviation])
     """
     partpos = np.empty(n)
     for i in prange(n):
@@ -139,7 +138,6 @@ def simulateParticlesDetailed(n,iterations,period,dt):
     """
     if not testTimeStep(dt):
         print("Uh oh, chance of particles jumping across potential barriers")
-
     partpos = np.empty(n)
     for i in range(n):
         partpos[i] = forwardEulerEndp(0,iterations,period,dt)
@@ -157,7 +155,6 @@ def datagen(start,end,fineness,particles = 10,iterations = 10000, dt = 10**-4):
     """
     # generate period landscape
     area  = np.linspace(start,end,fineness)
-    print(area)
     datas = np.empty(shape = (fineness,5))
     # initiate parallel simulation of particle drift
     for i in prange(fineness): 
@@ -172,7 +169,7 @@ def datagen(start,end,fineness,particles = 10,iterations = 10000, dt = 10**-4):
 
 def downhillSimp(errormax,partIterations,dt,particles = 30, maxiter = 500):
     """
-    Implements something similar to downhill simplex D = 2 in 1d.
+    Implements something similar to downhill simplex D = 1 in 1d.
     Maximizes particle position wrt. flashing period.
 
     """

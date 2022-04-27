@@ -11,45 +11,54 @@ def boltz(x):
     boltzfactor = -U(x,0.01,2*0.01)/get_D()
     return np.exp(boltzfactor)/(1-np.exp(-1/get_D()))
 
-def histogramtransport(particlepos,fine = 5):
+def histogramtransport(particleDist,fine = 5):
     """
     Create and plot fancy colourbased histogram  from particle positions
     with comparative fitted normal distirbution.
     """
-    hist = np.histogram(particlepos,bins = "auto", density = True)
+    fig, axs = plt.subplots(ncols = 1,nrows = 2, sharex=True)
+
+    # generate data and histogram bin midpoints as x-positions to fit normal distribution
+    hist = np.histogram(particleDist,bins = "auto", density = True)
     mids = [(i+j)/2 for i,j in zip(hist[1][1:],hist[1][:-1])]
-    
-    parts = len(particlepos)
-    diff = np.linspace(int(min(particlepos))-0.5,int(max(particlepos))+0.5,fine*(-int(min(particlepos))+int(max(particlepos)+2)))
+    # fit normal distribution
     (mu,sigma), _ = curve_fit(normal,mids,hist[0],p0 = (mids[len(mids)//2],1))
-    
-    fig,axs = plt.subplots(ncols = 1,nrows = 2, sharex=True)
-    h = axs[0].hist2d(particlepos,np.zeros(parts),density = True,bins = (diff,1))
-    x = np.linspace(int(min(particlepos))-1,1+int(max(particlepos)),11*(-int(min(particlepos))+int(max(particlepos))+2)+1)
-    mock= boltz(x)
-    
-    axs[1].pcolormesh(x,[0,1],[normal(x,mu,sigma)*mock,mock*normal(x,mu,sigma)])#density = True, bins = (diff,1))
+    # create x-axis coords for plotting
+    x = np.linspace(minTravel-1,maxTravel+1,11*(maxTravel-minTravel+2)+1)
+    # create and plot boltz-distribution
+    boltzDist = boltz(x)
+    # decide approximate concentration by scaling particle concentrations by the fitted normal distribution  
+    envelopedBoltzDist = [normal(x,mu,sigma)*boltzDist,normal(x,mu,sigma)*boltzDist]  
+    axs[1].pcolormesh(x,[0,1],envelopedBoltzDist)
+
+    # plot numerically simulated particle distributions in a style similar to original paper.
+    minTravel, maxTravel = int(min(particleDist)),int(max(particleDist))
+    diff = np.linspace(minTravel-0.5,maxTravel+0.5,fine*(maxTravel-minTravel+2))
+    dummyY = np.zeros(len(particleDist))
+    h = axs[0].hist2d(particleDist,dummyY,density = True,bins = (diff,1))
     
     axs[0].set_yticks([])
     axs[1].set_yticks([])
     axs[1].set_xlabel("x/L")
-    axs[0].set_title("Numerical results vs normal distribution")
+    axs[1].set_ylabel("Normal distribution")
+    axs[0].set_ylabel("Numerical results")
+    axs[0].set_title(f"Numerical results vs normal distribution, $N = {len(particleDist)}$ particles")
     fig.colorbar(h[3],ax = axs.ravel().tolist(), aspect = 10)
     plt.show()
 
-def histogramtransport2(particlepos):
+def histogramtransport2(particleDist):
     """
     Create and plot histogram from particle positions
     with fitted normal distribution overlayed.
     """
-    hist = np.histogram(particlepos,bins = "auto", density = True)
+    hist = np.histogram(particleDist,bins = "auto", density = True)
     mids = [(i+j)/2 for i,j in zip(hist[1][1:],hist[1][:-1])]
-    diff = np.linspace(int(min(particlepos))-0.5,int(max(particlepos))+0.5,(-int(min(particlepos))+int(max(particlepos)+2)))
+    diff = np.linspace(int(min(particleDist))-0.5,int(max(particleDist))+0.5,(-int(min(particleDist))+int(max(particleDist)+2)))
     (mu,sigma), _ = curve_fit(normal,mids,hist[0],p0 = (mids[len(mids)//2],1))
 
     fig,ax = plt.subplots()
-    ax.hist(particlepos,density = True,bins = diff)
-    x = np.linspace(min(particlepos)-5,max(particlepos)+5,10000)
+    ax.hist(particleDist,density = True,bins = diff)
+    x = np.linspace(min(particleDist)-5,max(particleDist)+5,10000)
     ax.plot(x,normal(x,mu,sigma), color = "green")
     ax.fill(x,normal(x,mu,sigma),alpha = 0.3, color = "green")#density = True, bins = (diff,1))
 
@@ -63,12 +72,12 @@ def boltzmannDistViz(n,dt =10**-4,iterations = 10000):
     Create and plot fancy colourbased histogram  from particle positions
     with comparative fitted normal distirbution.
     """
-    _, particlepos = simulateParticlesDetailed(n,iterations,period = dt*2,dt = dt)
-    hist = np.histogram(particlepos,bins = "auto", density = True)
+    _, particleDist = simulateParticlesDetailed(n,iterations,period = dt*2,dt = dt)
+    hist = np.histogram(particleDist,bins = "auto", density = True)
 
     diff = np.linspace(-0.4,0.5,n*10)
     fig,axs = plt.subplots()
-    axs.hist(particlepos,density = True,bins = hist[1])
+    axs.hist(particleDist,density = True,bins = hist[1])
     axs.plot(diff,boltz(diff)/(np.sum(boltz(diff))*(diff[1]-diff[0])))
 
     axs.set_xlabel("x/L")
@@ -94,9 +103,3 @@ def plotPotForceX(x_max):
     plt.plot(x,U(x,-0.001))
     plt.plot(x,F(x,-0.001))
     plt.show()
-
-if __name__ == "__main__":
-    #_,pos = d.simulateParticlesDetailed(20000,631400,5,10**-3)
-    #histogramtransport(pos, fine = 10)
-    boltzmannDistViz(100_000,10**-6,10000)
-    pass
