@@ -68,7 +68,7 @@ def randomPhotoElectric(Eg,Z,dx):
     """
     returns True if MonteCarlo-photoelectric interaction has taken place 
     """
-    sigma = 3*10**12*Z**4*(10**-3/Eg)**3.5 #OBS, Eg is in keV! dx-scale must make up for this
+    sigma = 3*10**12*Z**4*(10**-3/Eg)**3.5 #OBS, Eg is in keV!
     p = 1-np.exp(-sigma*dx)
     return p >= np.random.random_sample()
 
@@ -91,7 +91,7 @@ def monteCarloPhotoscattering(E0,theta0,Z,dx,steps,anglularfineness = 1000):
             Es, posits = Es[:i], posits[:i]
             break
         elif posits[i][0] < 0:
-            cont = 100
+            cont = 0
             Es, posits = Es[:i+cont], posits[:i+cont]
             for j in range(0,cont):
                 Es[:i+j] = Es[i]
@@ -139,24 +139,23 @@ def multiPolarPlot(fineness):
     sm = cm.ScalarMappable(cmap=cmap2, norm=norm)
     plt.colorbar(mappable=sm, ax=ax)
     plt.show()
-start = time()
-tot = np.array([[0,0]])
-print(tot.shape)
+
+
 
 @njit( cache = True)
 def aggregatePhotoScatt(n,l):
     tot = np.array([[0.0,0.0]])
     for i in range(n):
-        _, pos = monteCarloPhotoscattering(2000000,0,1,l,1000)
+        _, pos = monteCarloPhotoscattering(20_000_000_000,0,1,l,1000)
         tot = np.append(tot,pos,axis = 0)
         if i%(n//10) == 0:
             print("10%\done")
         #lt.plot(pos[:,0],pos[:,1])
     return tot
-l = 1*10**-13 # x = l*(1.6*10**16)**!!
+ # x = l*(1.6*10**16)**!!
 l = 100/3 # for z???
-
+start = time()
 tot = aggregatePhotoScatt(10000,l)
-plt.hexbin(tot[:,0],tot[:,1], gridsize=(91,73), bins = "log",extent = (-40*l,40*l,-17*l,17*l))
+plt.hexbin(tot[:,0],tot[:,1], gridsize=(91,73), bins = "log",extent = (-1*l,40*l,-20*l,20*l))
 plt.show()
  
