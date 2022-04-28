@@ -1,11 +1,6 @@
 import numpy as np
 
 
-# ---- Globals ----
-ALPHA = 0 #   0 < ALPHA < 1
-GAMMA = 1 #   0 < GAMMA 
-J = 1     #   
-# -----------------
 
 def spinlattice(N, M,periodic = True):
     """
@@ -22,17 +17,6 @@ def spinlattice(N, M,periodic = True):
     return initial
 print(spinlattice(2,2,False))
 
-
-def dtSpin(S : np.ndarray, F : np.ndarray):
-    prefac = -GAMMA/(1+ALPHA**2) 
-    terms = np.cross(S,F)+ALPHA*np.cross(S,np.cross(S,F)) 
-    return prefac*terms
-
-def Feffective(j,spins):
-    
-
-
-    return
 
 
 
