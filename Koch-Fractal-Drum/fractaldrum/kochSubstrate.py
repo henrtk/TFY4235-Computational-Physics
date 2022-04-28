@@ -22,11 +22,10 @@ class KochSubstrate:
     def populate(self):
         for i in range(self.len):
             for j in range(self.len):
-                self.grid[i,j] = is_point_in_path(i,j,self.kochCorners)
+                self.grid[i,j] = isPointInPoly(i,j,self.kochCorners)
         for i in self.findBoundary():
             if self.grid[i[0],i[1]]:
                 self.grid[i[0],i[1]] = np.bool_(False) 
-
 
     def findBoundary(self):
         kochCorner = self.kochCorners
@@ -83,7 +82,7 @@ def generateFractal(array,k,fineness):
         return generateFractal(generated,k-1,1)
 
 @njit(cache = True)
-def shiftxY(arr : np.array,length):
+def shiftxY(arr : np.array, length):
     for i in range(len(arr)):
         arr[i][0] = arr[i][0] + length
         arr[i][1] = arr[i][1] + length
@@ -112,7 +111,7 @@ def gridpts(l : int, fineness : int, generateGrid = False):
     return x, 2*extra+length+1, extra
 
 @njit(cache = True)
-def is_point_in_path(x: dtypePref, y: dtypePref, kochCorner) -> np.bool_:
+def isPointInPoly(x: dtypePref, y: dtypePref, kochCorner) -> np.bool_:
     # Determine if the point is in the polygon.
     #
     # params:

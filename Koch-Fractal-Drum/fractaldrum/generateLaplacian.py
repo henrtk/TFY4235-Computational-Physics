@@ -12,7 +12,7 @@ from joblib import dump
 dtypeK = np.int64 
 
 ## END GLOBALS
-@jit(nopython = True, cache=True)
+@jit(nopython = False, cache=True)
 def is_point_in_path(x: dtypeK, y: dtypeK, kochCorner) -> np.bool_:
     # Determine if the point is in the polygon.
     #
@@ -41,12 +41,11 @@ def is_point_in_path(x: dtypeK, y: dtypeK, kochCorner) -> np.bool_:
     return c
 
 
-def _tridiagLaplace(N,dtype=np.float64):
+def _tridiag(N,diagonal = [-1,4,-1] ,dtype=np.float64):
     """
     _protected_
     Generates tridiag-block for 2d laplacian
     """
-    diagonal = [-1,4,-1]
     return spsp.diags(diagonal,[-1,0,1],shape=(N,N),dtype=dtype)
 
 
@@ -92,15 +91,28 @@ def _matrixpospoint(i,j,N):
                   (N+center,center)]
     return result
 
-def laplacian2d(N,format,dtype = np.float64):
+def laplacian2d(N,format,dtype = np.float64, mode = "5pt"):
     """
     Generates a boundary condition less 2d laplacian
-    using a five point central difference approximation  
+    using a mode point central difference approximation 
+    
     """
 
-    innerDiag = _tridiagLaplace(N,dtype=dtype)
-    outerDiag = -spsp.eye(N,dtype = dtype) 
-    A = spsp.bmat([
+    if mode == "9pt":
+        innerDiag = spsp.diags([1/12,-4/3,5,-4/3,1/12],[-2,-1,0,1,2],shape=(N,N),dtype=dtype)
+        outerDiag = -spsp.eye(N,dtype = dtype)*4/3 
+        mostOuterDiag = spsp.eye(N,dtype = dtype)/12
+        A = spsp.bmat([
+                    [innerDiag if (i == j) 
+                    else outerDiag if abs(i-j)==1
+                    else mostOuterDiag if abs(i-j)==2
+                    else None for i in range(N)]
+                    for j in range(N)],
+                    format=format)
+    else:   
+        innerDiag = _tridiag(N,dtype=dtype)
+        outerDiag = -spsp.eye(N,dtype = dtype)  
+        A = spsp.bmat([
                     [innerDiag if (i == j) 
                     else outerDiag if abs(i-j)==1
                     else None for i in range(N)]
@@ -108,13 +120,6 @@ def laplacian2d(N,format,dtype = np.float64):
                     format=format)
     logging.info(f"Generated matrix size {A.get_shape()[0]}x{A.get_shape()[0]}, type: {type(A)}")
     return A
-
-@jit(nopython = True, cache = True)
-def shiftxY(arr : np.array,length):
-    for i in range(len(arr)):
-        arr[i][0] = arr[i][0] + length
-        arr[i][1] = arr[i][1] + length
-    return arr
         
 def unpackeigvec(flatvector: np.ndarray,shape : tuple):
     flatvector.reshape((shape))
@@ -132,8 +137,8 @@ def kochLaplacianBoundIs0(kochLen,kochCorners)->spsp.spmatrix:
                     A[i[0],i[1]] = 0
     return A
 
-def kochLaplacianBoundIs0v2(kochLen,kochCorners,dtype = np.float64)-> tuple(spsp.spmatrix,np.ndarray):
-    A = laplacian2d(kochLen,"csc",dtype=dtype)
+def kochLaplacianBoundIs0v2(kochLen,kochCorners,dtype = np.float64)-> tuple:
+    A = laplacian2d(kochLen,"csc",dtype=dtype,mode="5pt")
     logging.info("Iterating over all points")
     eliminateOutpoints(kochLen,kochCorners,A.data,A.indptr)
     logging.info("Converting sparse format")
@@ -145,14 +150,15 @@ def kochLaplacianBoundIs0v2(kochLen,kochCorners,dtype = np.float64)-> tuple(spsp
     indices = A.getnnz(0)>0
     # sort and eliminate diagonal zeroes.
     logging.info("Manipulating array")
-    A = A[A.getnnz(1)>0][:,A.getnnz(0)>0]
+    A = A[A.getnnz(1)>0][:,indices]
     return A, indices
 
 
-@jit(nopython = True, cache = True, parallel = True)
+
+@jit(nopython = True, parallel = True)
 def eliminateOutpoints(kochLen, kochCorners, csr_data, csr_indptr):
     """
-    Eliminates points thay are outside the
+    Eliminates points that are outside the grid within the sparse laplacian
     """
     for x in prange(kochLen):
         if (x % kochLen//10 == 0):
@@ -198,7 +204,7 @@ def generatePosits(kochlen,kochCorners):
 
 
 def generateLaplace(posits) -> tuple:
-    #SPECIAL CASE FOR  lowest and highest points, they only generate 1 below (first) and 1 above
+    # generate all grid point indices where posits == 1
     inGrid = np.argwhere(posits==1)
     A= spsp.eye(len(inGrid),format = "dok")*4
     que = deque([])

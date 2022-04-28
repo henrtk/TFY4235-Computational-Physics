@@ -10,18 +10,71 @@ import cupyx.scipy.sparse as cpsp
 from cupy import array as cparray
 import logging
 
-logging.basicConfig(level = logging.info)
+logging.basicConfig(level = logging.INFO,
+                    format='%(asctime)s %(message)s')
 
 
-def solveEigenValAssignment(level,fineness,numEigVects):
+def solveEigenValAssignment(level,fineness,numEigVects, save=False):
     logging.info(f"Generating fractal l = {level}, fineness = {fineness}")
-    fractal = util.kochSubstrate(level,fineness)
+    fractal = util.KochSubstrate(level,fineness)
     logging.info("Fractal generated. Generating")
-    laplacian, indices = util.kochLaplacianBoundIs0v2(fractal.len,fractal.fineness)
-    eigvals,eigvects = spspl.eigsh(laplacian,100,sigma = 0)
+    laplacian, indices = util.kochLaplacianBoundIs0v2(fractal.len,fractal.kochCorners)
+    logging.info("Initiating ARPACK call")
+    eigvals,eigvects = spspl.eigsh(laplacian,numEigVects,sigma = 0)
+    logging.info("ARPACK done")
+    if save:
+        np.save(f"Koch-Fractal-Drum\fractaldrum\__pycache__\l={level},f={fineness} vals",eigvals)
+        np.save(f"Koch-Fractal-Drum\fractaldrum\__pycache__\l={level},f={fineness} vals",eigvects)
+    return eigvals, eigvects, indices, fractal.len, fractal.kochCorners
+
+def unpackEigVec(vec,indices,gridlength):
+    grid = np.zeros(gridlength**2)
+    grid[indices] = vec
+    grid = np.reshape(grid,(gridlength,gridlength))
+    return grid
 
 
+def plotEigvalsNaively(level,fineness,numEigVects):
+    vals, vecs, inds, lent,corns =solveEigenValAssignment(4,10,numEigVects=10)
+    x, y  = np.arange(lent),np.arange(lent)
+    for i in vecs.T:
+        A = unpackEigVec(i,inds,lent)
+        plt.pcolormesh(x,y,A,cmap="viridis_r",shading = "gouraud")
+        plt.plot(corns[:,0],corns[:,1])
+        plt.show()
 
+def iDOS(eigvals,w):
+    """
+    Gives the amount of eigenvalues below a given omega
+    Beware: units chosen such that v = 1 (as eigenvalues are prop to 
+    w^2/v^2)
+
+    params:
+        eigvals : np.ndarray -> array-like of eigenvalues
+        w       : float      -> upper limit
+    
+    returns:
+        lenght  : int        -> # of eigenvalues below w 
+    """
+
+    return len((np.asarray(eigvals <= w**2).nonzero()))
+
+def deltaDOS(eigvals, plot = False):
+    topLim = max(eigvals)
+    waxis  = np.linspace(0,10000, topLim)
+    f = np.vectorize(iDOS) 
+    Area = 1
+    dDOS = Area/(4*np.pi)*waxis**2- f(eigvals,waxis)
+    
+    from scipy.optimize import curve_fit 
+    def wToTheD(w, M, d):
+        return M*w**d
+    params, covs = curve_fit(wToTheD,waxis,dDOS,p0=(3,1.5))
+    
+    plt.plot(waxis,dDOS)
+    plt.plot(waxis,wToTheD(waxis,params[0],params[1]))
+    plt.show()
+    return params[0], params[1]
 
 
 
@@ -123,4 +176,4 @@ def checkfromSavedLapl(filenameL,filenameI=0,k = 50):
     #np.save(filenameL+"eigvecs",eigvalsAndVec[1])
     #np.save(filenameL+"eigvals",eigvalsAndVec[0])
     
-checkfromSavedLapl("l5,f3.npy")
+
