@@ -26,19 +26,18 @@ class Consts(object):
         self.GAMMA = GAMMA      # 0 < GAMMA 
         self.J = J
         self.KBT = KBT
-        self.B = B
+        self.B = 0.1*J*B/magMom
         self.d_z = d_z
         self.magMom = magMom
 
 
 # ---- Globals ----
 ALPHA = 0.1#   0 < ALPHA < 1
-GAMMA = 1   #   0 < GAMMA 
+GAMMA = 0.176  #   0 < GAMMA 
 J = 1     # 
 KBT = J*0.001*0
 dt = 0.001  #picoseconds?
 
-consts = Consts(ALPHA=0.1,GAMMA=1,J = 1,KBT=0.1*J*0,B = np.array([0,0,1],dtype=np.float64),d_z = 0,magMom = 5.788*10**-2)
 
 # -----------------
 
@@ -68,6 +67,7 @@ def dtSpin(S : np.ndarray, F : np.ndarray,GAMMA,ALPHA):
     prefac = -GAMMA/(1+ALPHA**2) 
     terms = np.cross(S,F)+ALPHA*np.cross(S,np.cross(S,F)) 
     return prefac*terms
+
 
 @fast.njit(parallel = True)
 def effectiveFlatticeNonPeriodic(lattice,magMom,d_z, B: np.ndarray, J : float, dt : float):
@@ -144,130 +144,44 @@ def HeunsMethod3dLattice(lattice : np.ndarray, dt : float, steps :int, C : Const
 
     return lattices
 
+#@fast.njit(cache = True)
 def normalize(vecs):
+    """
+    Normalizes spin lattice vectors in an easy, simple function simultaneously
+    Thank you to Femoen, Viljar for the beautiful, efficient implementation.
+    """
     return vecs/np.linalg.norm(vecs,axis=-1)[...,np.newaxis]
     
 
 def atoms1d(atoms,steps,C:Consts,random = False,c = False):
     log.info("Running...")
-    C.ALPHA=0
     s = spinlattice(atoms,1,start=np.array([0,0,1])/np.linalg.norm([0,0,1]))
-    if c:
-        s[0,0] = np.array([0.2,0,1])/np.linalg.norm([0.2,0,1])
+    #if c:
+    s[0,0] = np.array([0.3,0,1])/np.linalg.norm([0.3,0,1])
     A = HeunsMethod3dLattice(s,0.001,steps,C)
     log.info(f"Heuns done! Shape = {A.shape}")
     
     if c:
         ts = np.arange(steps+1)*dt
         fig,axes = plt.subplots(3)
-        for i in range(0,atoms,3):
+        for i in range(0,atoms,10):
             axes[0].plot(ts,A[:,i,0,0])
             axes[1].plot(ts,A[:,i,0,1])
             axes[2].plot(ts,A[:,i,0,2])
     else:
         fig,axes = plt.subplots(1,3)
         for i,ax in enumerate(axes):
-            ax.imshow(A[::25,:,0,i])
-
-    plt.show()
-#atoms1d(100,100000,consts,random=False)
-
-def a(steps, consts : Consts,b = False):
-    s = spinlattice(1,1,0)
-    dt = 0.001
-    if not b:
-        consts.ALPHA=0
-    A = HeunsMethod3dLattice(s,dt,steps,consts,True)
-    fig,axes = plt.subplots(1,3,sharey=True)
-    ts = np.arange(steps+1)*dt
-    for i,ax in enumerate(axes):
-        ax.plot(ts,A[:,0,0,i])
-    if b:
-        def expCos(x,w,T):
-            return np.exp(-x*T)*np.cos(w*x)
-        from scipy.optimize import curve_fit
-        (w,T),_ = curve_fit(expCos,ts,A[:,0,0,0],p0 = (3,1))
-        axes[0].plot(ts,expCos(ts,w,T), label = "curvefitted",linewidth = 0.8)
-        print(w)
-        axes[0].plot(ts,expCos(ts,w,(consts.ALPHA*w)), label = "theroetival",linewidth = 1)
-        axes[0].legend()
+            ax.imshow(A[::25,:,0,i],aspect = "auto")
 
     plt.show()
 
-consts.ALPHA = 1
 
-atoms1d(atoms=30,steps=1500, C = consts, c = True)
+if __name__ == "__main__":
+    consts = Consts(ALPHA=0.1,GAMMA=0.176,J = 1,KBT=0.1*J*0,B = np.array([0,0,1],dtype=np.float64),d_z = 0,magMom = 5.788*10**-2)
 
+    consts.ALPHA = 0.01
 
-
-def plotQuivers(A,M,N):
-    plottingPlane = (0,1,2)   # (0, 1, 2) corresponds to the coordinates (x, y, z) respectively
-    fig, ax = plt.subplots(1)
-    X = np.arange(M)
-    Y = np.arange(N)
-    X,Y = np.meshgrid(X,Y)
-
-    Q = ax.quiver(X,Y,A[0,:,:,plottingPlane[0]],A[0,:,:,plottingPlane[1]], A[0,:,:,plottingPlane[2]])
-
-    def update_quiver(i,Q,A):
-        """
-        updates the horizontal and vertical vector components by a
-        fixed increment on each frame
-        """
-        U = A[i,:,:,plottingPlane[0]]
-        V = A[i,:,:,plottingPlane[1]]
-        C =  A[i,:,:,plottingPlane[2]]
-
-        Q.set_UVC(U,V,C)
-        return Q,
-    log.    info("Creating animation")
-    anim = animation.FuncAnimation(fig, update_quiver, fargs=(Q, A),
-                               interval=30, blit=False, repeat = True)
-    plt.show()
-
-"""
-
-palette = sns.color_palette("viridis",30)
-
-N, M = 20,20
-A = spinlattice(N,M,0)
-A[0,0] = np.array([0,0,1.0])
-
-a = []
-
-fig, ax = plt.subplots(1)
-
-X = np.arange(N)
-Y = np.arange(M)
-X,Y = np.meshgrid(X,Y)
-
-
-Q = ax.quiver(X,Y,A[:-1,:-1,1],A[:-1,:-1,2])
-
-plt.xlim([-1,N+1])
-plt.ylim([-1,M+1])
-
-for i in range(10000):
-    a.append(A)
-    A = effectiveFlatticeNonPeriodic(A,0.05,0.1,np.array([0.0,0,0]),1,0.0003)
-    
-    for k in range(5):
-        for j in range(5):
-            plt.quiver(j,k,A[j,k,1],A[j,k,2], color = palette[i])
+    atoms1d(atoms=100,steps=150000, C = consts, c = False)
 
 
 
-def update_quiver(i,Q,a):
-    updates the horizontal and vertical vector components by a
-    fixed increment on each frame
-    
-    U = a[i*5][:-1,:-1,1]
-    V = a[i*5][:-1,:-1,2]
-    
-    Q.set_UVC(U,V)
-    return Q,
-
-
-anim = animation.FuncAnimation(fig, update_quiver, fargs=(Q, a),
-                               interval=25, blit=False, repeat = True)
-plt.show()"""
