@@ -8,7 +8,7 @@ def selectmode(periodic,xmax,ymax):
     Selects and returns the correct evolution function based on the 
     inputs. These are optimized for specific boundary conditions.
 
-    General function:
+    All functions:
     Performs an Euler - type step to calculate the next spin state.
 
     params:
@@ -47,7 +47,7 @@ def dtSpin(S : np.ndarray, F : np.ndarray, GAMMA, ALPHA):
 
 
 @fast.njit(parallel = True, cache = True)
-def latticeChangeNonPeriodic(lattice, randnums, dt, xmax, ymax, C : Consts):
+def latticeChangeNonPeriodic(lattice:np.ndarray, randnums:np.ndarray, dt:float, xmax:int, ymax:int, C : Consts) -> np.ndarray:
     ez = np.array([0,0,1])
     tempLattice = np.zeros(shape = (ymax+1,xmax+1,3))
     res = np.empty(shape = (ymax,xmax,3))
@@ -58,7 +58,7 @@ def latticeChangeNonPeriodic(lattice, randnums, dt, xmax, ymax, C : Consts):
         
         for x in range(xmax):
 
-            anis = 2*C.d_z*np.linalg.norm(tempLattice[y,x],ord = 1)*ez
+            anis = 2*C.d_z*tempLattice[y,0]*ez
             
             spincoupling = C.J * (tempLattice[y,(x+1)] + tempLattice[y,x-1] + tempLattice[(y+1),x] + tempLattice[y-1,x]) 
             
@@ -70,7 +70,7 @@ def latticeChangeNonPeriodic(lattice, randnums, dt, xmax, ymax, C : Consts):
     return res
 
 @fast.njit(parallel = True, cache = True)
-def latticeChangePeriodic2d(lattice, randnums, dt, xmax, ymax, C : Consts):
+def latticeChangePeriodic2d(lattice:np.ndarray, randnums:np.ndarray, dt:float, xmax:int, ymax:int, C : Consts) -> np.ndarray:
     ez = np.array([0,0,1])
     tempLattice = lattice.copy()
 
@@ -82,9 +82,10 @@ def latticeChangePeriodic2d(lattice, randnums, dt, xmax, ymax, C : Consts):
         
         for x in range(xmax):
 
-            anis = 2*C.d_z*np.linalg.norm(tempLattice[y,x],ord = 1)*ez
+            anis = 2*C.d_z*tempLattice[y,0]*ez
             
-            spincoupling = C.J * (tempLattice[y,(x+1)%xmax] + tempLattice[y,x-1] + tempLattice[(y+1)%ymax,x] + tempLattice[y-1,x]) 
+            spincoupling = C.J * (tempLattice[y,(x+1)%xmax] + tempLattice[y,x-1] \
+                                + tempLattice[(y+1)%ymax,x] + tempLattice[y-1,x]) 
             
             Fj = C.B + spincoupling/C.magMom + anis/C.magMom
 
@@ -94,7 +95,7 @@ def latticeChangePeriodic2d(lattice, randnums, dt, xmax, ymax, C : Consts):
     return res
 
 @fast.njit(parallel = True, cache = True)
-def latticeChangePeriodic0d_X(lattice, randnums, dt, xmax, ymax, C : Consts):
+def latticeChangePeriodic0d_X(lattice:np.ndarray, randnums:np.ndarray, dt:float, xmax:int, ymax:int, C : Consts) -> np.ndarray:
     ez = np.array([0,0,1])
     tempLattice = lattice.copy()
     
@@ -104,9 +105,9 @@ def latticeChangePeriodic0d_X(lattice, randnums, dt, xmax, ymax, C : Consts):
 
     for y in fast.prange(ymax):
         
-        anis = 2*C.d_z*np.linalg.norm(tempLattice[y,0],ord = 1)*ez
+        anis = 2*C.d_z*tempLattice[y,0]*ez
             
-        spincoupling = C.J * ( tempLattice[(y+1)%ymax,0] + tempLattice[y-1,0]) 
+        spincoupling = C.J * (tempLattice[(y+1)%ymax,0] + tempLattice[y-1,0]) 
             
         Fj = C.B + spincoupling/C.magMom + anis/C.magMom
 
@@ -117,7 +118,7 @@ def latticeChangePeriodic0d_X(lattice, randnums, dt, xmax, ymax, C : Consts):
     return res
 
 @fast.njit(parallel = True, cache = True)
-def latticeChangePeriodic0d_Y(lattice, randnums, dt, xmax, ymax, C : Consts):
+def latticeChangePeriodic0d_Y(lattice:np.ndarray, randnums:np.ndarray, dt:float, xmax:int, ymax:int, C : Consts) -> np.ndarray:
     ez = np.array([0,0,1])
     tempLattice = np.zeros(shape = (ymax,xmax+1,3))
     tempLattice = lattice.copy()
@@ -128,13 +129,13 @@ def latticeChangePeriodic0d_Y(lattice, randnums, dt, xmax, ymax, C : Consts):
 
     for x in range(xmax):
 
-        anis = 2*C.d_z*np.linalg.norm(tempLattice[0,x],ord = 1)*ez
+        anis = 2*C.d_z*tempLattice[y,0]*ez
         
         spincoupling = C.J * (tempLattice[0,(x+1)%xmax] + tempLattice[0,x-1]) 
         
         Fj = C.B + spincoupling/C.magMom + anis/C.magMom
         
-        spinChange = dtSpin(lattice[0,x],Fj,C.GAMMA,C.ALPHA)
+        spinChange = dtSpin(lattice[0,x],Fj, C.GAMMA, C.ALPHA)
         
         res[0,x] = spinChange + randnums[0,x]*randomscaling
 
