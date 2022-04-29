@@ -1,4 +1,4 @@
-from SpinSim import *
+from spinSim import *
 
 def plotQuivers(evol,M,N, speed = 1):
     plottingPlane = (0,1,2)   # (0, 1, 2) corresponds to the coordinates (x, y, z) respectively
@@ -20,7 +20,7 @@ def plotQuivers(evol,M,N, speed = 1):
 
         Q.set_UVC(U,V,C)
         return Q,
-    log.    info("Creating animation")
+    log.info("Creating animation")
     anim = animation.FuncAnimation(fig, update_quiver, fargs=(Q, evol),
                                interval=30, blit=False, repeat = True)
     plt.show()

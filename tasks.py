@@ -1,15 +1,24 @@
 import numpy as np
-import SpinSim as s
+import spinSim as s
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 import plotQuiver
 
-standardConsts = s.Consts(ALPHA=0.1,GAMMA=0.176,J=1,\
-KBT=0,B = np.array([0,0,1]),d_z=0,magMom = 5.788*10**-2)
+standardConsts = s.Consts(
+    ALPHA                   = 0.1,
+    GAMMA                   = 0.176,
+    J                       = 1,
+    T                       = 0,
+    B                       = np.array([0,0,1]),
+    d_z                     = 0,
+    magMom                  = 5.788*10**-2
+    )
 
 def simOneSpinA(dt,steps):
 
     #figure used simOneSpinA(0.01,10000)
+
+    # Set up initial conditions 
     S1 = s.normalize([0.1,0,1])
     spinState = s.spinlattice(1,1,start = S1,random=False)
     consts = standardConsts
@@ -68,14 +77,16 @@ def simOneSpinB(dt,steps,alpha):
 
 #simOneSpinB(0.01,10000,0.1)
 
-def simAtomicChain(dt,steps, atoms = 40):
+def simAtomicChain(dt,steps, atoms = 40, periodic = False):
     #simAtomicChain(0.001,40000, atoms = 40) 
     spinInitial = s.spinlattice(atoms,1,start=np.array([0,0,1]))
     
-    standardConsts.ALPHA = 0.00
+    standardConsts.ALPHA = 0.08
 
     spinInitial[0,0] = s.normalize(np.array([0.1,0.0,1]))
-    spinEvolution = s.HeunsMethod3dLattice(spinInitial,dt,steps,standardConsts)
+    spinEvolution = s.HeunsMethod3dLattice(spinInitial,dt,steps,standardConsts,periodic)
+    
+    # the rest is plotting and plot setups. Boring!
     fig,axes = plt.subplots(1,3, sharey=True)
     axes[0].set_ylabel("Time [2fs]")
     labels = ("x","y","z")
@@ -85,10 +96,9 @@ def simAtomicChain(dt,steps, atoms = 40):
         plt.colorbar(im, ax = ax)
         ax.set_xlabel("Atom position")
     
-    #fig.subplots_adjust(right=0.8)
-    #cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    #fig.colorbar(im, cax=cbar_ax)
     plt.show()
+
+    # more plotting
     ts = np.arange(steps+1)*dt
     fig, axes = plt.subplots(1,3)
     for i in range(5):
@@ -100,8 +110,33 @@ def simAtomicChain(dt,steps, atoms = 40):
         ax.set_title(f"$S_{labels[i]}$")
         ax.set_xlabel("Time [ps]")
         ax.legend()
-    
+    # very cool quiver plot of spin states. Not suited to view with 0,0,1 init vectors! 
+    # Arrow size decided by first frame :(
+    plotQuiver.plotQuivers(spinEvolution,atoms,1)
     plt.show()
-    
-simAtomicChain(0.0001,400000,atoms = 100)  
 
+def sim1dGroundState(dt,steps,atoms,periodic,d_z,C : s.Consts):
+    C.B *=0
+    C.d_z = d_z
+    spinInitial = s.spinlattice(atoms,1,random=True)
+    spinEvol = s.HeunsMethod3dLattice(spinInitial,dt,steps,C,periodic=True)
+    
+    fig,axes = plt.subplots(1,3, sharey=True)
+    axes[0].set_ylabel("Time [2fs]")
+    labels = ("x","y","z")
+    
+    for i,ax in enumerate(axes):
+        ax.set_title(f"$S_{labels[i]}$")
+        ax.set_xlabel("Atom position")
+        im = ax.imshow(spinEvol[:,:,0,i],aspect = "auto",cmap = "viridis")
+        plt.colorbar(im, ax = ax)
+        
+    plt.show()    
+    return
+    
+#sim1dGroundState(0.002,2000000, atoms = 100, periodic=True,d_z =0.1,  C = standardConsts)#imAtomicChain(0.003,50000,atoms = 100, periodic=True)  
+
+def simGroundstate2d(steps : int, dt : float, atomsX : int, atomsY : int):
+    # Initialize 
+    s.spinlattice()
+    return 
