@@ -98,9 +98,10 @@ def simAtomicChain(dt,steps, atoms = 40):
 
     for i, ax in enumerate(axes):
         ax.set_title(f"$S_{labels[i]}$")
-        ax.set_xlabel("Time [2fs]")
+        ax.set_xlabel("Time [ps]")
         ax.legend()
     
     plt.show()
-    plotQuiver.plotQuivers(spinEvolution[:,:,:5,:],40,1)
-simAtomicChain(0.001,40000,atoms = 1000)    
+    
+simAtomicChain(0.0001,400000,atoms = 100)  
+
