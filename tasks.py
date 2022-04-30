@@ -1,11 +1,15 @@
+import logging
 import numpy as np
 import spinSim as s
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from tqdm import tqdm
 import plotQuiver
+import time
+
 
 standardConsts = s.Consts(
-    ALPHA                   = 0.1,
+    ALPHA                   = 0.05,
     GAMMA                   = 0.176,
     J                       = 1,
     T                       = 0,
@@ -23,7 +27,7 @@ def simOneSpinA(dt,steps):
     spinState = s.spinlattice(1,1,start = S1,random=False)
     consts = standardConsts
     consts.ALPHA = 0.0
-    spinEvolution = s.HeunsMethod3dLattice(spinState,dt,steps,consts)
+    spinEvolution = s.HeunsMethodLattice(spinState,dt,steps,consts)
     
     ts = np.arange(steps+1)*dt
     fig,axes = plt.subplots(2,1,sharex=True)
@@ -47,13 +51,12 @@ def simOneSpinA(dt,steps):
 
 def simOneSpinB(dt,steps,alpha):
     # Used to generate pic : simOneSpinB(0.01,10000,0.1)
-    
     S1 = s.normalize([0.1,0,1])
-    print(S1)
+
     spinState = s.spinlattice(1,1,start = S1,random=False)
     consts = standardConsts
     consts.ALPHA = alpha
-    spinEvolution = s.HeunsMethod3dLattice(spinState,dt,steps,consts)
+    spinEvolution = s.HeunsMethodLattice(spinState,dt,steps,consts)
     
     ts = np.arange(steps+1)*dt
     fig, axes = plt.subplots(2,1,sharex=True)
@@ -79,22 +82,26 @@ def simOneSpinB(dt,steps,alpha):
 
 def simAtomicChain(dt,steps, atoms = 40, periodic = False):
     #simAtomicChain(0.001,40000, atoms = 40) 
-    spinInitial = s.spinlattice(atoms,1,start=np.array([0,0,1]))
-    
-    standardConsts.ALPHA = 0.08
 
-    spinInitial[0,0] = s.normalize(np.array([0.1,0.0,1]))
-    spinEvolution = s.HeunsMethod3dLattice(spinInitial,dt,steps,standardConsts,periodic)
+    spinInitial          =   s.spinlattice(atoms,1,start=np.array([0,0,1]))
+
+    standardConsts.ALPHA =   0.08
+
+    spinInitial[0,0]     =   s.normalize(np.array([0.1,0.0,1]))
+    spinEvolution        =   s.HeunsMethodLattice(spinInitial,dt,steps,standardConsts,periodic)
     
     # the rest is plotting and plot setups. Boring!
-    fig,axes = plt.subplots(1,3, sharey=True)
+    fig,axes             =   plt.subplots(1,3, sharey=True)
+    labels               =   ("x", "y", "z")
+
     axes[0].set_ylabel("Time [2fs]")
-    labels = ("x","y","z")
+
     for i,ax in enumerate(axes):
-        ax.set_title(f"S$_{labels[i]}$")
+        
         im = ax.imshow(spinEvolution[::2,:,0,i],aspect = "auto",cmap = "viridis")
         plt.colorbar(im, ax = ax)
         ax.set_xlabel("Atom position")
+        ax.set_title(f"S$_{labels[i]}$")
     
     plt.show()
 
@@ -110,21 +117,27 @@ def simAtomicChain(dt,steps, atoms = 40, periodic = False):
         ax.set_title(f"$S_{labels[i]}$")
         ax.set_xlabel("Time [ps]")
         ax.legend()
+
     # very cool quiver plot of spin states. Not suited to view with 0,0,1 init vectors! 
     # Arrow size decided by first frame :(
     plotQuiver.plotQuivers(spinEvolution,atoms,1)
     plt.show()
 
-def sim1dGroundState(dt,steps,atoms,periodic,d_z,C : s.Consts):
-    C.B *=0
-    C.d_z = d_z
-    spinInitial = s.spinlattice(atoms,1,random=True)
-    spinEvol = s.HeunsMethod3dLattice(spinInitial,dt,steps,C,periodic=True)
-    
-    fig,axes = plt.subplots(1,3, sharey=True)
+def sim1dGroundState(dt, steps, atoms, periodic, d_z, C : s.Consts, ferro):
+    C.B        *=   0
+    C.d_z       =   d_z
+
+    if ferro:   
+        C.J     =   -1
+
+    spinInitial =   s.spinlattice(atoms,1,random=True)
+    spinEvol    =   s.HeunsMethodLattice(spinInitial,dt,steps,C,periodic)
+
+    fig,axes    =   plt.subplots(1,3, sharey=True)
+    labels      =   ("x","y","z")
+
     axes[0].set_ylabel("Time [2fs]")
-    labels = ("x","y","z")
-    
+
     for i,ax in enumerate(axes):
         ax.set_title(f"$S_{labels[i]}$")
         ax.set_xlabel("Atom position")
@@ -134,9 +147,173 @@ def sim1dGroundState(dt,steps,atoms,periodic,d_z,C : s.Consts):
     plt.show()    
     return
     
-#sim1dGroundState(0.002,2000000, atoms = 100, periodic=True,d_z =0.1,  C = standardConsts)#imAtomicChain(0.003,50000,atoms = 100, periodic=True)  
+#sim1dGroundState(0.001,60_000, atoms = 100, periodic=False,d_z =0.1,  C = standardConsts,ferro=True)#imAtomicChain(0.003,50000,atoms = 100, periodic=True)  
 
-def simGroundstate2d(steps : int, dt : float, atomsX : int, atomsY : int):
+def simGroundstate2d(dt : float, steps : int, atomsX : int, atomsY : int, C: s.Consts):
     # Initialize 
-    s.spinlattice()
+    spinInitial =   s.spinlattice(atomsY,atomsX,random = True)
+    spinEvol    =   s.HeunsMethodForgetful(spinInitial,dt,steps,C,periodic=True)
+    
+    fig,axes    =   plt.subplots(1,3, sharey=True)
+    labels      =   ("x","y","z")
+
+    axes[0].set_ylabel("Time [2fs]")
+
+    for i, ax in enumerate(axes):
+        ax.set_title(f"$S_{labels[i]}$")
+        ax.set_xlabel("Atom position")
+        ax.set_ylabel("Atom position")
+        im = ax.imshow(spinEvol[:,:,i], aspect = "auto", cmap = "viridis")
+        plt.colorbar(im, ax = ax)
+    plt.show()
     return 
+
+
+def findMagnetizationOverTime(dt,steps,atomsX,atomsY,T, C : s.Consts):
+    """
+    Generates time evolution of magnetization over time in a temperature influenced
+    plane of atoms with spin, for a given temperature T. Void, generates a plot.
+    Intial condition is all states equal to [0, 0, 1]. Plots the average of the 
+    equilibrium magnetization as a horizontal line.
+
+    params:
+        dt          :    float   -> time step size
+        steps       :    int     -> # of iterations for Heun's method
+        atoms(X,Y)  :    int     -> # of atoms along the X, Y direction in the atomic plane
+        T           :    float   -> Temperature to run simulation for
+        C           :    Consts  -> class carrying physical parameters
+
+    returns:
+        void
+    """
+
+
+    Ms = np.empty(steps)
+
+    C.KBT = T*0.0862  # kb in meV
+    
+    lattice = s.spinlattice(atomsX,atomsY,start=np.array([0,0,1.0]))
+
+    logging.disable("INFO")
+    
+    for i in tqdm(range(steps)):
+        lattice      =       s.HeunsMethodForgetful(lattice,dt,100,C,True)
+        Ms[i],_      =       s.magnetizationTimeavg(lattice)
+    
+    plt.plot(np.arange(steps+1)*dt*100,Ms)
+
+    avgMagEquil = np.mean(Ms[:-20*steps])
+    plt.hlines(avgMagEquil,label="Equilibrium magnetization", linestyle = "--")
+
+
+    plt.show()
+    return
+
+"""consts2d = s.Consts(
+    ALPHA       =       0.3,
+    GAMMA       =       0.176,
+    J           =       1,
+    T           =       1,
+    B           =       np.array([0,0,1]),
+    d_z         =       0,
+    magMom      =       5.788*10**-2
+    )    """
+#findMagnetization(0.001,1_00,20,20,T=10,C=consts2d)
+
+def curieSweep(dT,stepsT,C : s.Consts, interval:int = 20,atoms = 20,tag = "", plotLive=False):
+    """
+    Calculate and plot equilibrium magnetization vs temperature.
+    First initiate all spins in lattice in the z-direction and choose first T = dT
+    
+    Then evolve spin state dt*stepsPerIter and calculate and save average magnetization for the final state.
+    Repeat (iters) times.
+    The system should now be approximately in equilibrium. Evolve another 500 steps and calculate ensemble time
+    average by averaging the averages of the magnetization every tenth time step. Save this ensemble average.
+
+    increment T by dT,
+    repeat this stepsT times.
+
+    params:
+        dT          : float     -> temperature step for the sweep
+        stepsT      : int       -> amount of times to increment by dT
+        C           : s.Consts  -> class holding all relevant physical parameters, jit-friendly
+        interval    : int       -> # of time steps to calculate equilibrium avg magnetization over
+        atoms       : int       -> the # of atoms on each axis in the lattice, total atoms x atoms spin states
+        tag         : str       -> extra tag for the filename to save the generated data to.
+        plotLive    : bool      -> decide if we want the plot to be generated as-we-go, to visualize progression
+    
+    returns:
+        plot of equilibrium magnetization for every T, 
+        plot of magnetization evolution (to visualize reaching equilibrium)
+    """
+    # set up variables, mostly for data visualization
+    stepsPerIter    =    250
+    iters           =    50
+    dt              =    0.001    
+    ts              =    np.arange(iters)*dt*stepsPerIter
+    Ts              =    np.linspace(dT,dT*stepsT,stepsT+1)
+    magnetVals      =    np.empty((stepsT+1,iters))
+    magnetAvg       =    np.empty(stepsT+1)
+    magnetStds      =    np.empty(stepsT+1)
+    kb              =    0.0862             # [meV/T]
+
+
+    fig, axes = plt.subplots(2,1)
+   
+    logging.disable("INFO")
+    for i,T in tqdm(enumerate(Ts)):
+        C.KBT                           =       kb*T 
+        forw                            =       s.spinlattice(atoms,atoms,start=[0,0,1])
+        axes[0].clear()
+        axes[1].clear()
+        for j in range(iters):
+            forw                        =       s.HeunsMethodForgetful(forw,dt,stepsPerIter,C,True)
+            magnetVals[i,j], _          =       s.magnetizationTimeavg(forw)
+        
+        equilibrium                     =       s.HeunsMethodLattice(forw,dt,interval,C,True)
+        magnetAvg[i], magnetStds[i]     =       s.magnetizationTimeavg(equilibrium)
+        
+        if plotLive:
+            if i >=2:    
+                axes[0].pcolormesh(ts,Ts[:i],magnetVals[:i],vmin=-0.05, vmax=1, shading="auto")
+
+            #plot progress, averages.
+            axes[1].plot(Ts[:i], magnetAvg[:i])
+            #Plot 95% confidence intervals. ~50 averages give 50 df, student distrib critical val for 95% is 2.01
+            axes[1].fill_between(Ts[:i], magnetAvg[:i] + 2*magnetStds[:i], y2=magnetAvg[:i]-2*magnetStds[:i], alpha=0.5)
+            plt.pause(0.5)
+
+    im = axes[0].pcolormesh(ts,Ts,magnetVals,vmin=-0.05, vmax=1,shading="auto")
+    axes[0].set_title("$\langle M_z(T,t)\\rangle$")
+    axes[0].set_xlabel("Time [ps]")
+    axes[0].set_ylabel("Temp. [K]")
+
+    axes[1].plot(Ts, magnetAvg)
+    axes[1].set_xlabel("T [K]")
+    axes[1].set_ylabel("$M_z(T)$ equilibrium")
+
+    plt.colorbar(im,ax=axes[0])
+    #plt.plot(Ts,magnetAvg)
+    #plt.fill_between(Ts, magnetAvg + magnetStds, y2=magnetAvg-magnetStds, alpha=0.5)
+    #plt.ylim([-.1,1.1])
+    #plt.title("Equilibrium Magnetization as a function of T")
+    #plt.xlabel("T [K]")
+    #plt.ylabel("Ensemble magnetization")
+    
+    plt.show()
+    np.save(f"MagnetAvg {atoms}, dT = {dT}, maxT = {dT*stepsT}, {tag}", magnetAvg, allow_pickle = True)
+    np.save(f"MagnetStd {atoms}, dT = {dT}, maxT = {dT*stepsT}, {tag}", magnetStds, allow_pickle = True)
+
+consts2d = s.Consts(
+    ALPHA       =       0.3,
+    GAMMA       =       0.176,
+    J           =       1,
+    T           =       1,
+    B           =       np.array([0.0,0.0,10]),
+    d_z         =       0,
+    magMom      =       5.788*10**-2
+    )    
+
+curieSweep(1,40,consts2d, interval =  500, atoms = 40, tag = "B is 10")
+
+
