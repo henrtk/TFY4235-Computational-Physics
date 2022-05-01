@@ -14,7 +14,7 @@ class Consts(object):
         ALPHA : Dampening constant 0 < ALPHA < 1 [unitless]
         GAMMA : Gyromagnetic constant       [1/(T ps)], ~ 0.178 
         J     : Coupling constant           [meV]       ~ 1
-        KBT   : Thermal energy              [meV] 
+        KBT   : Thermal energy              [meV]       ~ 0.086 meV/K * T
         B     : Magnetic field              [T]         ~ 1.72 
         d_z   : Anisotropy constant         [meV]       ~ 0.1*J
         magMom: Magnetic moment             [meV/T]     ~ 5.788*10**-2
@@ -23,8 +23,8 @@ class Consts(object):
         self.ALPHA = ALPHA      
         self.GAMMA = GAMMA      
         self.J = J
-        self.KBT = T*0.0862
-        self.B = B*1.0
+        self.KBT = T*0.0862 
+        self.B = B*1.0 
         self.d_z = d_z
         self.magMom = magMom
 

@@ -1,0 +1,6 @@
+numba
+numpy=1.22.4
+scipy
+matplotlib
+tqdm
+logging

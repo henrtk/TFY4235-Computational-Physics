@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from tqdm import tqdm
 import plotQuiver
-import time
 
 
 standardConsts = s.Consts(
@@ -49,6 +48,7 @@ def simOneSpinA(dt,steps):
 
     return
 
+
 def simOneSpinB(dt,steps,alpha):
     # Used to generate pic : simOneSpinB(0.01,10000,0.1)
     S1 = s.normalize([0.1,0,1])
@@ -78,7 +78,6 @@ def simOneSpinB(dt,steps,alpha):
     plt.show()
     return
 
-#simOneSpinB(0.01,10000,0.1)
 
 def simAtomicChain(dt,steps, atoms = 40, periodic = False):
     #simAtomicChain(0.001,40000, atoms = 40) 
@@ -127,8 +126,6 @@ def simAtomicChain(dt,steps, atoms = 40, periodic = False):
     #plotQuiver.plotQuivers(spinEvolution,atoms,1)
     plt.show()
 
-#simAtomicChain(0.001,20_000,40,True)
-
 
 def sim1dGroundState(dt, steps, atoms, periodic, d_z, C : s.Consts, antiferro):
     C.B        *=   3
@@ -154,7 +151,7 @@ def sim1dGroundState(dt, steps, atoms, periodic, d_z, C : s.Consts, antiferro):
     plt.show()    
     return
     
-#sim1dGroundState(0.001,100_000, atoms = 100, periodic=True,d_z =0.1,  C = standardConsts,antiferro=False)#imAtomicChain(0.003,50000,atoms = 100, periodic=True)  
+
 
 def simGroundstate2d(dt : float, steps : int, atomsX : int, atomsY : int, C: s.Consts):
     # Initialize 
@@ -212,7 +209,7 @@ def findMagnetizationOverTime(dt,steps,atomsX,atomsY,T, C : s.Consts):
     plt.hlines(avgMagEquil,xmin = 0, xmax = interval*steps*dt, 
                label = "Equilibrium magnetization", linestyle = "--", color = "r")
     
-    # re initialize with new temp
+    # re initialize with new temp 1K
     lattice = s.spinlattice(atomsX,atomsY,start=np.array([0,0,1.0]))
     C.KBT = 0.0862
     for i in tqdm(range(steps)):
@@ -223,22 +220,13 @@ def findMagnetizationOverTime(dt,steps,atomsX,atomsY,T, C : s.Consts):
     avgMagEquil = np.mean(Ms[:-steps//3])
     plt.hlines(avgMagEquil,xmin = 0, xmax = interval*steps*dt, 
                label = "Equilibrium magnetization", linestyle = "--", color = "m",linewidth = 2)
-    plt.legend(loc = "lower left",bbox_to_anchor=(0.6,0.5))
+    plt.legend(loc = "lower left",bbox_to_anchor=(0.45,0.45))
     plt.show()
     return  
 
-consts2d = s.Consts(
-    ALPHA       =       0.3,
-    GAMMA       =       0.176,
-    J           =       1,
-    T           =       1,
-    B           =       np.array([0,0,1.72]),
-    d_z         =       0,
-    magMom      =       5.788*10**-2
-    )   
-findMagnetizationOverTime(0.001,3_000,20,20,T=10,C=consts2d)
 
-def curieSweep(dT,stepsT,C : s.Consts, interval:int = 30,atoms = 30,tag = "", plotLive=False):
+
+def curieSweep(dT,stepsT,C : s.Consts, interval:int = 1_000,atoms = 30,tag = "", plotLive=False):
     """
     Calculate and plot equilibrium magnetization vs temperature.
     First initiate all spins in lattice in the z-direction and choose first T = dT
@@ -297,7 +285,7 @@ def curieSweep(dT,stepsT,C : s.Consts, interval:int = 30,atoms = 30,tag = "", pl
 
             #plot progress, averages.
             axes[1].plot(Ts[:i], magnetAvg[:i])
-            #Plot 95% confidence intervals. ~50 averages give 50 df, student distrib critical val for 95% is 2.01
+            #Plot 95% confidence intervals, 1.95 is close enough to 2.
             axes[1].fill_between(Ts[:i], magnetAvg[:i] + 2*magnetStds[:i], y2=magnetAvg[:i]-2*magnetStds[:i], alpha=0.5)
             plt.pause(0.5)
 
@@ -323,7 +311,51 @@ def curieSweep(dT,stepsT,C : s.Consts, interval:int = 30,atoms = 30,tag = "", pl
     np.save(f"MagnetAvg {atoms}, dT = {dT}, maxT = {dT*stepsT}, {tag}", magnetAvg, allow_pickle = True)
     np.save(f"MagnetStd {atoms}, dT = {dT}, maxT = {dT*stepsT}, {tag}", magnetStds, allow_pickle = True)
 
+
+def _plotSavedData():
+    import os
+    Ts = np.linspace(1,41,41)
+    for avg, std in zip(os.scandir("magavg2"),os.scandir("magstd2")):
+        if "tonight" in str(avg):
+            Ts = np.logspace(0,2.85,101,base=5)
+        
+            #print(str(avg))
+            #Ts = np.linspace(1,40,41)
+            magnetAvg = np.load(avg,allow_pickle=True)
+            magnetStds = np.load(std,allow_pickle=True)
+            plt.title("Phase diagrams for different field strengths.")
+            plt.xlabel("Temperature [K]", fontsize= 12)
+            plt.plot(Ts[:-10], magnetAvg[:-10], label = str(avg)[-20:-14]+"T")
+            plt.fill_between(Ts[:-10], magnetAvg[:-10] + 2*magnetStds[:-10], y2=magnetAvg[:-10]-2*magnetStds[:-10], alpha=0.4)
+    plt.legend(fontsize = 12)
+    plt.show()
+    pass
+
+
+"""
+# Generate many of the figures used in the text
+
+#simOneSpinB(0.01,10000,0.1)
+
+#simAtomicChain(0.001,20_000,40,True)
+
+#sim1dGroundState(0.001,100_000, atoms = 100, periodic=True,d_z =0.1,  C = standardConsts,antiferro=False)#imAtomicChain(0.003,50000,atoms = 100, periodic=True)  
+
+
 consts2d = s.Consts(
+    ALPHA       =       0.3,
+    GAMMA       =       0.176,
+    J           =       1,
+    T           =       1,
+    B           =       np.array([0,0,1.72]),
+    d_z         =       0,
+    magMom      =       5.788*10**-2
+    )   
+
+#findMagnetizationOverTime(0.001,3_000,20,20,T=10,C=consts2d)
+
+
+consts2dsweep = s.Consts(
     ALPHA       =       0.3,
     GAMMA       =       0.176,
     J           =       1,
@@ -332,23 +364,12 @@ consts2d = s.Consts(
     d_z         =       0,
     magMom      =       5.788*10**-2
     )    
+
+
 #for i in (1,5,10,30):
+#    
 #    consts2d.B = np.array([0.0,0.0,i])
-#    curieSweep(1, 100, consts2d, interval =  10_000, atoms = 40, tag = f"B = {i} tonight")
+#    curieSweep(1, 100, consts2dsweep, interval =  10_000, atoms = 40, tag = f"B = {i} tonight")
+
 #plt.plot()
-def plotSavedData():
-    import os
-    Ts = np.linspace(1,41,41)
-    for avg, std in zip(os.scandir("magavg"),os.scandir("magstd")):
-        if "tonight" in str(avg):
-            Ts = np.logspace(0,2.85,101,base=5)
-        
-            print(str(avg))
-            #Ts = np.linspace(1,40,41)
-            magnetAvg = np.load(avg,allow_pickle=True)
-            magnetStds = np.load(std,allow_pickle=True)
-            plt.plot(Ts, magnetAvg)
-            plt.fill_between(Ts, magnetAvg + 2*magnetStds, y2=magnetAvg-2*magnetStds, alpha=0.5)
-    plt.show()
-    pass
-#plotSavedData()
+"""
