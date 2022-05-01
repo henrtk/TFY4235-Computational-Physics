@@ -2,6 +2,7 @@ import numba as fast
 from jitConsts import Consts
 import numpy as np
 import logging as log
+import timeit
 
 def selectmode(periodic,xmax,ymax):
     """
@@ -44,7 +45,8 @@ def selectmode(periodic,xmax,ymax):
 @fast.njit(cache = True)
 def dtSpin(S : np.ndarray, F : np.ndarray, GAMMA, ALPHA):
     prefac = -GAMMA/(1+ALPHA**2) 
-    terms = np.cross(S,F)+ALPHA*np.cross(S,np.cross(S,F)) 
+    precession = np.cross(S,F)
+    terms = precession+ALPHA*np.cross(S,precession) 
     return prefac*terms
 
 
@@ -89,6 +91,11 @@ def latticeChangeNonPeriodic(lattice:np.ndarray, randnums:np.ndarray, dt:float, 
 
 @fast.njit(parallel = True, cache = True)
 def latticeChangePeriodic2d(lattice:np.ndarray, randnums:np.ndarray, dt:float, xmax:int, ymax:int, C : Consts) -> np.ndarray:
+    """
+    Adds modulo operators to ensure periodicity for neareast neighbour checks.
+    No padding needed
+    """
+    
     ez = np.array([0,0,1])
 
     res = np.empty(shape = (ymax,xmax,3))
@@ -114,6 +121,9 @@ def latticeChangePeriodic2d(lattice:np.ndarray, randnums:np.ndarray, dt:float, x
 
 @fast.njit(parallel = True, cache = True)
 def latticeChangePeriodic0d_X(lattice:np.ndarray, randnums:np.ndarray, dt:float, xmax:int, ymax:int, C : Consts) -> np.ndarray:
+    """
+    Periodic only in the y-ends, as x axis is 0 dimensional. No need to check x-neighbours!
+    """
     ez = np.array([0,0,1])
     
     res = np.empty(shape = (ymax,xmax,3))
@@ -136,6 +146,11 @@ def latticeChangePeriodic0d_X(lattice:np.ndarray, randnums:np.ndarray, dt:float,
 
 @fast.njit(parallel = True, cache = True)
 def latticeChangePeriodic0d_Y(lattice:np.ndarray, randnums:np.ndarray, dt:float, xmax:int, ymax:int, C : Consts) -> np.ndarray:
+    """
+    Periodic only in the x-ends, as y axis is 0 dimensional. No need to check x-neighbours!
+
+    """
+    
     ez = np.array([0,0,1])
     
     res = np.empty(shape = (ymax,xmax,3))
