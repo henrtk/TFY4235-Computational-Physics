@@ -152,7 +152,6 @@ def sim1dGroundState(dt, steps, atoms, periodic, d_z, C : s.Consts, antiferro):
     return
     
 
-
 def simGroundstate2d(dt : float, steps : int, atomsX : int, atomsY : int, C: s.Consts):
     # Initialize 
     spinInitial =   s.spinlattice(atomsY,atomsX,random = True)
@@ -223,7 +222,6 @@ def findMagnetizationOverTime(dt,steps,atomsX,atomsY,T, C : s.Consts):
     plt.legend(loc = "lower left",bbox_to_anchor=(0.45,0.45))
     plt.show()
     return  
-
 
 
 def curieSweep(dT,stepsT,C : s.Consts, interval:int = 1_000,atoms = 30,tag = "", plotLive=False):

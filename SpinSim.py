@@ -1,4 +1,3 @@
-from locale import normalize
 import numpy as np
 import numba as fast
 from numba import float64
@@ -159,7 +158,7 @@ def magnetizationTimeavg(lattices,separation = 10):
     
     
     if len(lattices[:,:,2].shape) == 2:
-        return np.mean(lattices[:,:,2]), np.std(lattices[:,:,2],ddof=1)
+        return np.mean(lattices[:,:,2]), np.std(lattices[:,:,2])
 
     mag = np.zeros(len(lattices))
     for i in range(0,lattices.shape[0],separation):
@@ -172,7 +171,7 @@ def magnetizationTimeavg(lattices,separation = 10):
     mag = mag[mag.nonzero()]
 
     
-    return np.mean(mag), np.std(mag,ddof=1)
+    return np.mean(mag), np.std(mag)
 
 
 if __name__ == "__main__":
