@@ -128,11 +128,8 @@ def simAtomicChain(dt,steps, atoms = 40, periodic = False):
 
 
 def sim1dGroundState(dt, steps, atoms, periodic, d_z, C : s.Consts, antiferro):
-    C.B        *=   3
-    C.d_z       =   d_z
-
     if antiferro:   
-        C.J     =   -1
+        C.J     =   -C.J
 
     spinInitial =   s.spinlattice(atoms,1,random=True)
     spinEvol    =   s.HeunsMethodLattice(spinInitial,dt,steps,C,periodic)
@@ -366,7 +363,7 @@ consts2dsweep = s.Consts(
 
 #for i in (1,5,10,30):
 #    
-#    consts2d.B = np.array([0.0,0.0,i])
+#    consts2dsweep.B = np.array([0.0,0.0,i])
 #    curieSweep(1, 100, consts2dsweep, interval =  10_000, atoms = 40, tag = f"B = {i} tonight")
 
 #plt.plot()
