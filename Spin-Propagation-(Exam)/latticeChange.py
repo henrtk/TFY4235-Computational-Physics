@@ -106,7 +106,7 @@ def latticeChangePeriodic2d(lattice:np.ndarray, randnums:np.ndarray, dt:float, x
         
         for x in fast.prange(xmax):
 
-            anis = 2*C.d_z*lattice[y,0]*ez
+            anis = 2*C.d_z*lattice[y,x]*ez
             
             spincoupling = C.J * (lattice[y,(x+1)%xmax] + lattice[y,x-1] \
                                 + lattice[(y+1)%ymax,x] + lattice[y-1,x]) 

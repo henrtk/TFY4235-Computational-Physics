@@ -1,4 +1,4 @@
-from spinSim import *
+from SpinSim import *
 
 def plotQuivers(evol,M,N, speed = 1):
     plottingPlane = (0,1,2)   # (0, 1, 2) corresponds to the coordinates (x, y, z) respectively
