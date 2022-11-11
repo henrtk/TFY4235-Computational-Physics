@@ -77,7 +77,7 @@ def latticeChangeNonPeriodic(lattice:np.ndarray, randnums:np.ndarray, dt:float, 
         
         for x in range(xmax):
 
-            anis = 2*C.d_z*tempLattice[y,0]*ez
+            anis = 2*C.d_z*tempLattice[y,x]*ez
             
             spincoupling = C.J * (tempLattice[y,(x+1)] + tempLattice[y,x-1] + tempLattice[(y+1),x] + tempLattice[y-1,x]) 
             

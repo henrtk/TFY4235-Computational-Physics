@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-import spinSim as s
+import SpinSim as s
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from tqdm import tqdm
@@ -326,45 +326,66 @@ def _plotSavedData():
     plt.show()
     pass
 
-
-"""
-# Generate many of the figures used in the text
-
-#simOneSpinB(0.01,10000,0.1)
-
-#simAtomicChain(0.001,20_000,40,True)
-
-#sim1dGroundState(0.001,100_000, atoms = 100, periodic=True,d_z =0.1,  C = standardConsts,antiferro=False)#imAtomicChain(0.003,50000,atoms = 100, periodic=True)  
+def quivered2dState(atomsX,atomsY,dt,steps,C):
+    spinInitial =   s.spinlattice(atomsY,atomsX,random = True)
+    spinEvol    =   s.HeunsMethodLattice(spinInitial,dt,steps,C,periodic=True)
+    plotQuiver.plotQuivers(spinEvol,atomsX,atomsY,1)
+    return
 
 
-consts2d = s.Consts(
-    ALPHA       =       0.3,
-    GAMMA       =       0.176,
-    J           =       1,
-    T           =       1,
-    B           =       np.array([0,0,1.72]),
-    d_z         =       0,
-    magMom      =       5.788*10**-2
-    )   
+if __name__ == "__main__":
 
-#findMagnetizationOverTime(0.001,3_000,20,20,T=10,C=consts2d)
+    # Set constants
+    consts2dsweep = s.Consts(
+        ALPHA       =       0.1,
+        GAMMA       =       0.176,
+        J           =       1,
+        T           =       0.0,
+        B           =       np.array([0.0,0.0,1]),
+        d_z         =       1,
+        magMom      =       5.788*10**-2
+        )    
+
+    quivered2dState(20,20,0.01,10000,consts2dsweep)
+
+    """
+    # Generate many of the figures used in the text
+
+    #simOneSpinB(0.01,10000,0.1)
+
+    #simAtomicChain(0.001,20_000,40,True)
+
+    #sim1dGroundState(0.001,100_000, atoms = 100, periodic=True,d_z =0.1,  C = standardConsts,antiferro=False)#imAtomicChain(0.003,50000,atoms = 100, periodic=True)  
 
 
-consts2dsweep = s.Consts(
-    ALPHA       =       0.3,
-    GAMMA       =       0.176,
-    J           =       1,
-    T           =       1,
-    B           =       np.array([0.0,0.0,10]),
-    d_z         =       0,
-    magMom      =       5.788*10**-2
-    )    
+    consts2d = s.Consts(
+        ALPHA       =       0.3,
+        GAMMA       =       0.176,
+        J           =       1,
+        T           =       1,
+        B           =       np.array([0,0,1.72]),
+        d_z         =       0,
+        magMom      =       5.788*10**-2
+        )   
+
+    #findMagnetizationOverTime(0.001,3_000,20,20,T=10,C=consts2d)
 
 
-#for i in (1,5,10,30):
-#    
-#    consts2dsweep.B = np.array([0.0,0.0,i])
-#    curieSweep(1, 100, consts2dsweep, interval =  10_000, atoms = 40, tag = f"B = {i} tonight")
+    consts2dsweep = s.Consts(
+        ALPHA       =       0.3,
+        GAMMA       =       0.176,
+        J           =       1,
+        T           =       1,
+        B           =       np.array([0.0,0.0,10]),
+        d_z         =       0,
+        magMom      =       5.788*10**-2
+        )    
 
-#plt.plot()
-"""
+
+    #for i in (1,5,10,30):
+    #    
+    #    consts2dsweep.B = np.array([0.0,0.0,i])
+    #    curieSweep(1, 100, consts2dsweep, interval =  10_000, atoms = 40, tag = f"B = {i} tonight")
+
+    #plt.plot()
+    """
